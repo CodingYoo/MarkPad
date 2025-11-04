@@ -2,9 +2,12 @@ import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
-import { Pin, Trash2, Save, MoreVertical, Maximize, X, Tag as TagIcon, Plus } from 'lucide-react'
+import { Pin, Trash2, Save, MoreVertical, Maximize, X, Tag as TagIcon, Plus, FileDown } from 'lucide-react'
 import { ContextMenu } from './ContextMenu'
 import { getTagColor } from '../utils'
+
+// Check if running in Tauri environment
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
 export const Editor = () => {
   const { notes, currentNoteId, updateNote, deleteNote, togglePinNote, projects, types, tags } = useStore()
@@ -17,7 +20,9 @@ export const Editor = () => {
   const [fullscreenPreview, setFullscreenPreview] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [showTagMenu, setShowTagMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (currentNote) {
@@ -46,6 +51,8 @@ export const Editor = () => {
           setFullscreenPreview(false)
         } else if (showTagMenu) {
           setShowTagMenu(false)
+        } else if (showExportMenu) {
+          setShowExportMenu(false)
         }
       }
     }
@@ -54,27 +61,323 @@ export const Editor = () => {
       if (showTagMenu) {
         setShowTagMenu(false)
       }
+      if (showExportMenu && exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false)
+      }
     }
 
     document.addEventListener('keydown', handleEscape)
-    if (showTagMenu) {
+    if (showTagMenu || showExportMenu) {
       // Delay adding the click listener to avoid immediate closure
       setTimeout(() => {
         document.addEventListener('click', handleClickOutside)
-      }, 0)
+      }, 100)
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
       document.removeEventListener('click', handleClickOutside)
     }
-  }, [fullscreenPreview, showTagMenu])
+  }, [fullscreenPreview, showTagMenu, showExportMenu])
 
   const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
     e.stopPropagation()
     console.log('Context menu triggered at:', e.clientX, e.clientY)
     setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleExportMarkdown = async () => {
+    console.log('=== Export Markdown Debug Info ===')
+    
+    if (!currentNote) {
+      console.warn('No note selected')
+      setShowExportMenu(false)
+      return
+    }
+
+    const markdown = `# ${title}\n\n${content}`
+    console.log('Markdown content created, length:', markdown.length)
+
+    try {
+      // 尝试导入 Tauri 插件来检测是否在 Tauri 环境中
+      console.log('Attempting to use Tauri plugins...')
+      
+      try {
+        const dialogModule = await import('@tauri-apps/plugin-dialog')
+        const fsModule = await import('@tauri-apps/plugin-fs')
+        
+        console.log('>>> Tauri plugins loaded, entering Tauri mode...')
+        console.log('dialog.save:', typeof dialogModule.save)
+        console.log('fs.writeTextFile:', typeof fsModule.writeTextFile)
+        
+        console.log('Calling save dialog...')
+        const filePath = await dialogModule.save({
+          defaultPath: `${title || '未命名'}.md`,
+          filters: [{ 
+            name: 'Markdown', 
+            extensions: ['md', 'markdown'] 
+          }]
+        })
+        
+        console.log('Save dialog returned:', filePath)
+        
+        if (filePath) {
+          console.log('Writing file to:', filePath)
+          await fsModule.writeTextFile(filePath, markdown)
+          console.log('File saved successfully!')
+          alert('文件保存成功！')
+        } else {
+          console.log('User cancelled save dialog')
+        }
+      } catch (tauriError) {
+        // Tauri 插件加载失败，使用浏览器模式
+        console.log('>>> Tauri not available, falling back to browser download mode...')
+        console.log('Tauri error:', tauriError)
+        
+        const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${title || '未命名'}.md`
+        a.style.display = 'none'
+        
+        document.body.appendChild(a)
+        console.log('Triggering browser download...')
+        a.click()
+        
+        setTimeout(() => {
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+          console.log('Download completed - check your Downloads folder')
+        }, 100)
+      }
+      
+    } catch (error) {
+      console.error('Export markdown failed:', error)
+      alert('导出失败：' + (error instanceof Error ? error.message : String(error)))
+    }
+    
+    setShowExportMenu(false)
+  }
+
+  const handleExportPDF = async () => {
+    console.log('handleExportPDF called', { 
+      currentNote, 
+      title, 
+      contentLength: content.length 
+    })
+    
+    if (!currentNote) {
+      console.warn('No note selected')
+      setShowExportMenu(false)
+      return
+    }
+
+    try {
+      // 导入必要的库
+      const { jsPDF } = await import('jspdf')
+      const html2canvas = (await import('html2canvas')).default
+      const React = await import('react')
+      const ReactDOM = await import('react-dom/client')
+      
+      console.log('>>> Generating PDF with rendered Markdown...')
+      
+      // 创建一个临时的 div 来渲染 Markdown 内容
+      const tempDiv = document.createElement('div')
+      tempDiv.style.cssText = `
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        width: 794px;
+        padding: 40px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: white;
+        box-sizing: border-box;
+      `
+      
+      document.body.appendChild(tempDiv)
+      
+      // 使用 React 渲染 Markdown 内容
+      const root = ReactDOM.createRoot(tempDiv)
+      await new Promise<void>((resolve) => {
+        root.render(
+          React.createElement('div', null, [
+            React.createElement('h1', { 
+              key: 'title',
+              style: { 
+                fontSize: '28px', 
+                borderBottom: '2px solid #eee', 
+                paddingBottom: '10px', 
+                marginTop: 0,
+                marginBottom: '20px', 
+                fontWeight: 600 
+              } 
+            }, title || '未命名'),
+            React.createElement('div', { 
+              key: 'content',
+              className: 'prose prose-sm',
+              style: {
+                maxWidth: 'none',
+                fontSize: '14px',
+                lineHeight: 1.6
+              }
+            }, React.createElement(ReactMarkdown, {
+              remarkPlugins: [remarkGfm],
+              components: {
+                img: ({node, ...props}: any) => (
+                  React.createElement('img', {
+                    ...props,
+                    style: { 
+                      maxWidth: '100%', 
+                      height: 'auto', 
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      display: 'block',
+                      margin: '1rem 0'
+                    }
+                  })
+                ),
+                h1: ({node, ...props}: any) => React.createElement('h1', { ...props, style: { fontSize: '24px', fontWeight: 600, marginTop: '24px', marginBottom: '16px' } }),
+                h2: ({node, ...props}: any) => React.createElement('h2', { ...props, style: { fontSize: '20px', fontWeight: 600, marginTop: '20px', marginBottom: '12px' } }),
+                h3: ({node, ...props}: any) => React.createElement('h3', { ...props, style: { fontSize: '18px', fontWeight: 600, marginTop: '16px', marginBottom: '8px' } }),
+                p: ({node, ...props}: any) => React.createElement('p', { ...props, style: { marginBottom: '12px' } }),
+                code: ({node, inline, ...props}: any) => React.createElement('code', { 
+                  ...props, 
+                  style: inline ? { 
+                    backgroundColor: '#f3f4f6', 
+                    padding: '2px 6px', 
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'monospace'
+                  } : {
+                    display: 'block',
+                    backgroundColor: '#f3f4f6',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontFamily: 'monospace',
+                    overflowX: 'auto'
+                  }
+                }),
+                ul: ({node, ...props}: any) => React.createElement('ul', { ...props, style: { marginBottom: '12px', paddingLeft: '24px' } }),
+                ol: ({node, ...props}: any) => React.createElement('ol', { ...props, style: { marginBottom: '12px', paddingLeft: '24px' } }),
+                table: ({node, ...props}: any) => React.createElement('table', { ...props, style: { borderCollapse: 'collapse', width: '100%', marginBottom: '16px', border: '1px solid #e5e7eb' } }),
+                th: ({node, ...props}: any) => React.createElement('th', { ...props, style: { border: '1px solid #e5e7eb', padding: '8px', backgroundColor: '#f9fafb', fontWeight: 600, textAlign: 'left' } }),
+                td: ({node, ...props}: any) => React.createElement('td', { ...props, style: { border: '1px solid #e5e7eb', padding: '8px' } })
+              }
+            }, content || '*暂无内容*'))
+          ])
+        )
+        // 等待渲染完成
+        setTimeout(resolve, 300)
+      })
+      
+      console.log('Rendering content to canvas...')
+      
+      // 使用 html2canvas 将内容转换为图片
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2, // 提高清晰度
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      })
+      
+      // 清理临时元素
+      document.body.removeChild(tempDiv)
+      
+      console.log('Canvas generated, converting to PDF...')
+      
+      // 创建 PDF
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+      
+      // A4 纸张尺寸（mm）
+      const pageWidth = 210
+      const pageHeight = 297
+      const imgWidth = pageWidth
+      const imgHeight = (canvas.height * pageWidth) / canvas.width
+      
+      let heightLeft = imgHeight
+      let position = 0
+      
+      // 添加第一页
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+      
+      // 如果内容超过一页，添加更多页面
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+      
+      // 生成 PDF Blob
+      const pdfBlob = pdf.output('blob')
+      
+      console.log('PDF generated, size:', pdfBlob.size)
+      
+      // 尝试使用 Tauri 保存对话框
+      try {
+        const dialogModule = await import('@tauri-apps/plugin-dialog')
+        const fsModule = await import('@tauri-apps/plugin-fs')
+        
+        console.log('>>> Using Tauri save dialog for PDF...')
+        
+        const filePath = await dialogModule.save({
+          defaultPath: `${title || '未命名'}.pdf`,
+          filters: [{ 
+            name: 'PDF', 
+            extensions: ['pdf'] 
+          }]
+        })
+        
+        if (filePath) {
+          // 将 Blob 转换为 ArrayBuffer
+          const arrayBuffer = await pdfBlob.arrayBuffer()
+          const uint8Array = new Uint8Array(arrayBuffer)
+          
+          // 写入文件
+          await fsModule.writeFile(filePath, uint8Array)
+          console.log('PDF saved to:', filePath)
+          alert('PDF 保存成功！')
+        } else {
+          console.log('User cancelled save dialog')
+        }
+      } catch (tauriError) {
+        // 浏览器环境：直接下载
+        console.log('>>> Tauri not available, using browser download...')
+        console.log('Tauri error:', tauriError)
+        
+        const url = URL.createObjectURL(pdfBlob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${title || '未命名'}.pdf`
+        a.style.display = 'none'
+        
+        document.body.appendChild(a)
+        a.click()
+        
+        setTimeout(() => {
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+          console.log('PDF download triggered')
+        }, 100)
+      }
+      
+    } catch (error) {
+      console.error('Export PDF failed:', error)
+      alert('导出 PDF 失败：' + (error instanceof Error ? error.message : String(error)))
+    }
+    
+    setShowExportMenu(false)
   }
 
   const insertMarkdown = (action: string, value?: string) => {
@@ -510,12 +813,47 @@ export const Editor = () => {
           >
             <Trash2 size={18} />
           </button>
-          <button
-            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-            title="更多选项"
-          >
-            <MoreVertical size={18} />
-          </button>
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowExportMenu(!showExportMenu)
+              }}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              title="更多选项"
+            >
+              <MoreVertical size={18} />
+            </button>
+            {showExportMenu && (
+              <div 
+                className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={(e) => {
+                    console.log('Export MD button clicked')
+                    e.stopPropagation()
+                    handleExportMarkdown()
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <FileDown size={16} className="text-blue-500" />
+                  <span>导出为 MD</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    console.log('Export PDF button clicked')
+                    e.stopPropagation()
+                    handleExportPDF()
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <FileDown size={16} className="text-red-500" />
+                  <span>导出为 PDF</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
