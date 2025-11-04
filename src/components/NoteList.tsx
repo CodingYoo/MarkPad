@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { formatDetailedDate, getTagColor } from '../utils'
-import { Plus, Search, Pin, ChevronLeft, ChevronRight, Clock, Folder, FolderPlus, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react'
+import { Search, Pin, ChevronLeft, ChevronRight, Clock, Folder, FolderPlus, ChevronDown, ChevronRight as ChevronRightIcon, Plus } from 'lucide-react'
 
 export const NoteList = () => {
   const {
@@ -237,17 +237,10 @@ export const NoteList = () => {
               </button>
               <button
                 onClick={handleCreateFolder}
-                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors mr-2"
+                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title="新建文件夹"
               >
                 <FolderPlus size={20} className="text-gray-600 dark:text-gray-400" />
-              </button>
-              <button
-                onClick={() => handleCreateNote(null)}
-                className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition"
-                title="新建文章"
-              >
-                <Plus size={20} />
               </button>
             </div>
         {/* Search */}
@@ -271,12 +264,6 @@ export const NoteList = () => {
         {filteredNotes.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">暂无便签</p>
-            <button
-              onClick={() => handleCreateNote(null)}
-              className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition"
-            >
-              创建第一个便签
-            </button>
           </div>
         ) : (
           <div className="space-y-3">
