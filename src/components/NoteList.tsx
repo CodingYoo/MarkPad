@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { formatDetailedDate, getTagColor } from '../utils'
 import { Search, Pin, ChevronLeft, ChevronRight, Clock, Folder, FolderPlus, ChevronDown, ChevronRight as ChevronRightIcon, Plus } from 'lucide-react'
+import { FolderModal } from './FolderModal'
 
 export const NoteList = () => {
   const {
@@ -14,7 +15,6 @@ export const NoteList = () => {
     currentNoteId,
     setCurrentNote,
     createNote,
-    createFolder,
     updateFolder,
     deleteFolder,
     setFilter,
@@ -25,6 +25,7 @@ export const NoteList = () => {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; folderId: string } | null>(null)
+  const [folderModalOpen, setFolderModalOpen] = useState(false)
 
   const filteredNotes = useMemo(() => {
     let result = [...notes]
@@ -127,10 +128,7 @@ export const NoteList = () => {
   }
 
   const handleCreateFolder = () => {
-    const folderName = prompt('请输入文件夹名称')
-    if (folderName && folderName.trim()) {
-      createFolder(folderName.trim())
-    }
+    setFolderModalOpen(true)
   }
 
   const toggleFolder = (folderId: string) => {
@@ -490,6 +488,9 @@ export const NoteList = () => {
       )}
         </>
       )}
+      
+      {/* Folder Modal */}
+      <FolderModal isOpen={folderModalOpen} onClose={() => setFolderModalOpen(false)} />
     </div>
   )
 }

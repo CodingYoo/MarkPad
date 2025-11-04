@@ -1,6 +1,7 @@
 export { Sidebar } from './Sidebar'
 export { NoteList } from './NoteList'
 export { Editor } from './Editor'
+export { FolderModal } from './FolderModal'
 export { Modal } from './Modal'
 export { ProjectModal } from './ProjectModal'
 export { TypeModal } from './TypeModal'
