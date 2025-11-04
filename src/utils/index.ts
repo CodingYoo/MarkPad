@@ -125,6 +125,7 @@ export const getInitialData = () => {
       { id: generateId(), name: '重要', createdAt: now },
       { id: generateId(), name: '紧急', createdAt: now },
     ],
+    folders: [],
     notes: [],
     settings: {
       theme: 'light' as const,

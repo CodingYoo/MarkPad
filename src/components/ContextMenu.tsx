@@ -76,27 +76,27 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
         { label: 'H3', icon: Heading3, action: 'heading', value: '3' },
       ]
     },
-    { type: 'divider' },
+    { type: 'divider' } as const,
     { 
       label: '格式', 
       icon: Bold,
       children: [
-        { label: '粗体', icon: Bold, action: 'bold' },
-        { label: '斜体', icon: Italic, action: 'italic' },
-        { label: '删除线', icon: Minus, action: 'strikethrough' },
-        { label: '行内代码', icon: Code, action: 'inline-code' },
+        { label: '粗体', icon: Bold, action: 'bold', value: undefined },
+        { label: '斜体', icon: Italic, action: 'italic', value: undefined },
+        { label: '删除线', icon: Minus, action: 'strikethrough', value: undefined },
+        { label: '行内代码', icon: Code, action: 'inline-code', value: undefined },
       ]
     },
     { 
       label: '列表', 
       icon: List,
       children: [
-        { label: '无序列表', icon: List, action: 'unordered-list' },
-        { label: '有序列表', icon: ListOrdered, action: 'ordered-list' },
-        { label: '任务列表', icon: CheckSquare, action: 'task-list' },
+        { label: '无序列表', icon: List, action: 'unordered-list', value: undefined },
+        { label: '有序列表', icon: ListOrdered, action: 'ordered-list', value: undefined },
+        { label: '任务列表', icon: CheckSquare, action: 'task-list', value: undefined },
       ]
     },
-    { type: 'divider' },
+    { type: 'divider' } as const,
     { label: '链接', icon: Link, action: 'link' },
     { label: '图片', icon: ImageIcon, action: 'image' },
     { label: '引用', icon: Quote, action: 'quote' },
@@ -154,7 +154,7 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
                       <button
                         key={childIndex}
                         onClick={() => {
-                          onSelect(child.action, child.value)
+                          onSelect(child.action, child.value || '')
                           onClose()
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

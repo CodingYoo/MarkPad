@@ -19,6 +19,12 @@ export interface Tag {
   createdAt: string
 }
 
+export interface Folder {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export interface Note {
   id: string
   title: string
@@ -26,6 +32,7 @@ export interface Note {
   projectId: string | null
   typeId: string | null
   tagIds: string[]
+  folderId: string | null
   isPinned: boolean
   createdAt: string
   updatedAt: string
@@ -41,6 +48,7 @@ export interface AppData {
   projects: Project[]
   types: NoteType[]
   tags: Tag[]
+  folders: Folder[]
   notes: Note[]
   settings: Settings
 }

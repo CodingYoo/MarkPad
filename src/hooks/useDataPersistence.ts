@@ -7,7 +7,7 @@ const isTauri = '__TAURI__' in window
 export const useDataPersistence = () => {
   const store = useStore()
   const isInitialMount = useRef(true)
-  const saveTimeoutRef = useRef<NodeJS.Timeout>()
+  const saveTimeoutRef = useRef<number>()
 
   // Load data on mount
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { AppData, Note, Project, NoteType, Tag, FilterState } from '../types'
+import { AppData, Note, Project, NoteType, Tag, Folder, FilterState } from '../types'
 import { generateId, getInitialData } from '../utils'
 
 interface AppStore extends AppData {
@@ -27,6 +27,11 @@ interface AppStore extends AppData {
   createTag: (name: string, group?: string) => void
   updateTag: (id: string, name: string, group?: string) => void
   deleteTag: (id: string) => void
+  
+  // Folder operations
+  createFolder: (name: string) => void
+  updateFolder: (id: string, name: string) => void
+  deleteFolder: (id: string) => void
   
   // Filter operations
   setFilter: (filter: Partial<FilterState>) => void
@@ -62,6 +67,7 @@ export const useStore = create<AppStore>((set, get) => ({
       projectId: note.projectId || null,
       typeId: note.typeId || null,
       tagIds: note.tagIds || [],
+      folderId: note.folderId || null,
       isPinned: false,
       createdAt: now,
       updatedAt: now,
@@ -192,6 +198,35 @@ export const useStore = create<AppStore>((set, get) => ({
     }))
   },
   
+  // Folder operations
+  createFolder: (name) => {
+    const newFolder: Folder = {
+      id: generateId(),
+      name,
+      createdAt: new Date().toISOString(),
+    }
+    set((state) => ({
+      folders: [...state.folders, newFolder],
+    }))
+  },
+  
+  updateFolder: (id, name) => {
+    set((state) => ({
+      folders: state.folders.map((folder) =>
+        folder.id === id ? { ...folder, name } : folder
+      ),
+    }))
+  },
+  
+  deleteFolder: (id) => {
+    set((state) => ({
+      folders: state.folders.filter((folder) => folder.id !== id),
+      notes: state.notes.map((note) =>
+        note.folderId === id ? { ...note, folderId: null } : note
+      ),
+    }))
+  },
+  
   // Filter operations
   setFilter: (filter) => {
     set((state) => ({
@@ -237,6 +272,7 @@ export const useStore = create<AppStore>((set, get) => ({
       projects: state.projects,
       types: state.types,
       tags: state.tags,
+      folders: state.folders,
       notes: state.notes,
       settings: state.settings,
     }

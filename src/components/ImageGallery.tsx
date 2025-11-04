@@ -15,8 +15,6 @@ interface ImageGalleryProps {
   onClose: () => void
 }
 
-const isTauri = '__TAURI__' in window
-
 export const ImageGallery = ({ isOpen, onClose }: ImageGalleryProps) => {
   const [images, setImages] = useState<ImageInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -281,7 +279,7 @@ const ImageCard = ({ image, onDelete, onCopy, onClick, formatDate, formatSize, g
             src={imageUrl}
             alt={image.filename}
             className="w-full h-full object-cover"
-            onError={(e) => {
+            onError={() => {
               console.error('Image failed to load:', imageUrl)
               setError(true)
             }}

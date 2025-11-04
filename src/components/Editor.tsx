@@ -2,12 +2,9 @@ import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
-import { Pin, Trash2, Save, MoreVertical, Maximize, X, Tag as TagIcon, Plus, FileDown } from 'lucide-react'
+import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown } from 'lucide-react'
 import { ContextMenu } from './ContextMenu'
 import { getTagColor } from '../utils'
-
-// Check if running in Tauri environment
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
 export const Editor = () => {
   const { notes, currentNoteId, updateNote, deleteNote, togglePinNote, projects, types, tags } = useStore()
@@ -286,6 +283,7 @@ export const Editor = () => {
       })
       
       // 清理临时元素
+      root.unmount()
       document.body.removeChild(tempDiv)
       
       console.log('Canvas generated, converting to PDF...')
