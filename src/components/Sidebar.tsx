@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useStore } from '../store'
 import { FolderOpen, Tag, CheckSquare, FileText, Lightbulb, Users, Plus, Settings, Database, Image, Download, Upload, Moon, Sun } from 'lucide-react'
 import { ProjectModal } from './ProjectModal'
@@ -34,6 +34,7 @@ export const Sidebar = () => {
   const [tagModalOpen, setTagModalOpen] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showImageGallery, setShowImageGallery] = useState(false)
+  const settingsMenuRef = useRef<HTMLDivElement>(null)
 
   const iconMap: Record<string, typeof CheckSquare> = {
     CheckSquare,
@@ -48,6 +49,23 @@ export const Sidebar = () => {
     Lightbulb: '#f59e0b',
     Users: '#8b5cf6',
   }
+
+  // 点击外部关闭应用设置菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target as Node)) {
+        setShowSettings(false)
+      }
+    }
+
+    if (showSettings) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSettings])
 
   const handleExport = async () => {
     try {
@@ -350,7 +368,7 @@ export const Sidebar = () => {
 
       {/* Settings Section */}
       <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-        <div className="relative">
+        <div className="relative" ref={settingsMenuRef}>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
@@ -359,7 +377,14 @@ export const Sidebar = () => {
             <span>应用设置</span>
           </button>
           {showSettings && (
-            <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50">
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-black/30 z-40"
+                onClick={() => setShowSettings(false)}
+              />
+              {/* Settings Menu */}
+              <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50">
               <button
                 onClick={() => {
                   toggleTheme()
@@ -406,7 +431,8 @@ export const Sidebar = () => {
                 <Database size={16} className="text-purple-500" />
                 <span>备份数据</span>
               </button>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>
