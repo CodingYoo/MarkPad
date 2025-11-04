@@ -15,6 +15,7 @@ export interface NoteType {
 export interface Tag {
   id: string
   name: string
+  group?: string  // 标签组名称，同组标签互斥（只能选一个）
   createdAt: string
 }
 

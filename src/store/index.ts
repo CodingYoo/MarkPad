@@ -24,8 +24,8 @@ interface AppStore extends AppData {
   deleteType: (id: string) => void
   
   // Tag operations
-  createTag: (name: string) => void
-  updateTag: (id: string, name: string) => void
+  createTag: (name: string, group?: string) => void
+  updateTag: (id: string, name: string, group?: string) => void
   deleteTag: (id: string) => void
   
   // Filter operations
@@ -162,10 +162,11 @@ export const useStore = create<AppStore>((set, get) => ({
   },
   
   // Tag operations
-  createTag: (name) => {
+  createTag: (name, group) => {
     const newTag: Tag = {
       id: generateId(),
       name,
+      group,
       createdAt: new Date().toISOString(),
     }
     set((state) => ({
@@ -173,10 +174,10 @@ export const useStore = create<AppStore>((set, get) => ({
     }))
   },
   
-  updateTag: (id, name) => {
+  updateTag: (id, name, group) => {
     set((state) => ({
       tags: state.tags.map((tag) =>
-        tag.id === id ? { ...tag, name } : tag
+        tag.id === id ? { ...tag, name, group } : tag
       ),
     }))
   },

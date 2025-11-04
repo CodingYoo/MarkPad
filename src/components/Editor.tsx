@@ -308,9 +308,30 @@ export const Editor = () => {
 
   const toggleTag = (tagId: string) => {
     if (!currentNote) return
-    const newTagIds = currentNote.tagIds.includes(tagId)
-      ? currentNote.tagIds.filter(id => id !== tagId)
-      : [...currentNote.tagIds, tagId]
+    
+    const selectedTag = tags.find(t => t.id === tagId)
+    if (!selectedTag) return
+
+    let newTagIds: string[]
+    
+    if (currentNote.tagIds.includes(tagId)) {
+      // 取消选择该标签
+      newTagIds = currentNote.tagIds.filter(id => id !== tagId)
+    } else {
+      // 选择该标签
+      if (selectedTag.group) {
+        // 如果标签属于某个组，先移除同组的其他标签
+        const groupTagIds = tags
+          .filter(t => t.group === selectedTag.group)
+          .map(t => t.id)
+        newTagIds = currentNote.tagIds.filter(id => !groupTagIds.includes(id))
+        newTagIds.push(tagId)
+      } else {
+        // 普通标签，直接添加
+        newTagIds = [...currentNote.tagIds, tagId]
+      }
+    }
+    
     updateNote(currentNote.id, { tagIds: newTagIds })
   }
 
@@ -341,8 +362,13 @@ export const Editor = () => {
               >
                 #{tag.name}
                 <button
-                  onClick={() => toggleTag(tag.id)}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    toggleTag(tag.id)
+                  }}
                   className="hover:bg-black/10 dark:hover:bg-white/10 rounded-full p-0.5 transition"
+                  type="button"
                 >
                   <X size={12} />
                 </button>
@@ -362,7 +388,7 @@ export const Editor = () => {
             </button>
             {showTagMenu && (
               <div 
-                className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-2 min-w-[160px] z-50"
+                className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-2 min-w-[200px] max-h-[400px] overflow-y-auto z-50"
                 onClick={(e) => e.stopPropagation()}
               >
                 {tags.length === 0 ? (
@@ -370,29 +396,92 @@ export const Editor = () => {
                     暂无标签
                   </div>
                 ) : (
-                  tags.map((tag) => {
-                    const isSelected = currentNote?.tagIds.includes(tag.id)
-                    const tagColor = getTagColor(tag.name)
+                  (() => {
+                    // 按组分类标签
+                    const groupedTags: Record<string, typeof tags> = {}
+                    const ungroupedTags: typeof tags = []
+                    
+                    tags.forEach(tag => {
+                      if (tag.group) {
+                        if (!groupedTags[tag.group]) {
+                          groupedTags[tag.group] = []
+                        }
+                        groupedTags[tag.group].push(tag)
+                      } else {
+                        ungroupedTags.push(tag)
+                      }
+                    })
+
                     return (
-                      <button
-                        key={tag.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleTag(tag.id)
-                        }}
-                        className={`w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition ${
-                          isSelected ? 'bg-gray-50 dark:bg-gray-700/50' : ''
-                        }`}
-                      >
-                        <div className={`w-3 h-3 rounded-full border-2 ${isSelected ? tagColor.border : 'border-gray-300 dark:border-gray-600'}`}>
-                          {isSelected && (
-                            <div className={`w-full h-full rounded-full ${tagColor.bg}`} />
-                          )}
-                        </div>
-                        <span className={`flex-1 text-left ${tagColor.text}`}>#{tag.name}</span>
-                      </button>
+                      <>
+                        {/* 分组标签 */}
+                        {Object.entries(groupedTags).map(([groupName, groupTags]) => (
+                          <div key={groupName}>
+                            <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30">
+                              {groupName}
+                            </div>
+                            {groupTags.map((tag) => {
+                              const isSelected = currentNote?.tagIds.includes(tag.id)
+                              const tagColor = getTagColor(tag.name)
+                              return (
+                                <button
+                                  key={tag.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleTag(tag.id)
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition ${
+                                    isSelected ? 'bg-gray-50 dark:bg-gray-700/50' : ''
+                                  }`}
+                                >
+                                  <div className={`w-3 h-3 rounded-full border-2 ${isSelected ? tagColor.border : 'border-gray-300 dark:border-gray-600'}`}>
+                                    {isSelected && (
+                                      <div className={`w-full h-full rounded-full ${tagColor.bg}`} />
+                                    )}
+                                  </div>
+                                  <span className={`flex-1 text-left ${tagColor.text}`}>#{tag.name}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ))}
+                        
+                        {/* 未分组标签 */}
+                        {ungroupedTags.length > 0 && (
+                          <div>
+                            {Object.keys(groupedTags).length > 0 && (
+                              <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30">
+                                其他
+                              </div>
+                            )}
+                            {ungroupedTags.map((tag) => {
+                              const isSelected = currentNote?.tagIds.includes(tag.id)
+                              const tagColor = getTagColor(tag.name)
+                              return (
+                                <button
+                                  key={tag.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleTag(tag.id)
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition ${
+                                    isSelected ? 'bg-gray-50 dark:bg-gray-700/50' : ''
+                                  }`}
+                                >
+                                  <div className={`w-3 h-3 rounded-full border-2 ${isSelected ? tagColor.border : 'border-gray-300 dark:border-gray-600'}`}>
+                                    {isSelected && (
+                                      <div className={`w-full h-full rounded-full ${tagColor.bg}`} />
+                                    )}
+                                  </div>
+                                  <span className={`flex-1 text-left ${tagColor.text}`}>#{tag.name}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
                     )
-                  })
+                  })()
                 )}
               </div>
             )}

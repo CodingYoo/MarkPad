@@ -113,8 +113,17 @@ export const getInitialData = () => {
       { id: generateId(), name: '会议', icon: 'Users', createdAt: now },
     ],
     tags: [
-      { id: generateId(), name: '紧急', createdAt: now },
+      // 状态组 - 互斥标签
+      { id: generateId(), name: '未完成', group: '状态', createdAt: now },
+      { id: generateId(), name: '进行中', group: '状态', createdAt: now },
+      { id: generateId(), name: '已完成', group: '状态', createdAt: now },
+      // 优先级组 - 互斥标签
+      { id: generateId(), name: '低优先级', group: '优先级', createdAt: now },
+      { id: generateId(), name: '中优先级', group: '优先级', createdAt: now },
+      { id: generateId(), name: '高优先级', group: '优先级', createdAt: now },
+      // 普通标签 - 无分组，可多选
       { id: generateId(), name: '重要', createdAt: now },
+      { id: generateId(), name: '紧急', createdAt: now },
     ],
     notes: [],
     settings: {

@@ -4,6 +4,7 @@ import { FolderOpen, Tag, CheckSquare, FileText, Lightbulb, Users, Plus } from '
 import { ProjectModal } from './ProjectModal'
 import { TypeModal } from './TypeModal'
 import { TagModal } from './TagModal'
+import { getTagColor } from '../utils'
 
 export const Sidebar = () => {
   const { projects, types, tags, filter, setFilter, resetFilter } = useStore()
@@ -114,28 +115,91 @@ export const Sidebar = () => {
               <Plus size={16} className="text-gray-500 dark:text-gray-400" />
             </button>
           </div>
-          <div className="space-y-1">
-            {tags.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => {
-                  const isSelected = filter.tagIds.includes(tag.id)
-                  setFilter({
-                    tagIds: isSelected
-                      ? filter.tagIds.filter((id) => id !== tag.id)
-                      : [...filter.tagIds, tag.id],
-                  })
-                }}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition ${
-                  filter.tagIds.includes(tag.id)
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Tag size={18} />
-                <span className="flex-1 text-left truncate">{tag.name}</span>
-              </button>
-            ))}
+          <div className="space-y-2">
+            {(() => {
+              // 按组分类标签
+              const groupedTags: Record<string, typeof tags> = {}
+              const ungroupedTags: typeof tags = []
+              
+              tags.forEach(tag => {
+                if (tag.group) {
+                  if (!groupedTags[tag.group]) {
+                    groupedTags[tag.group] = []
+                  }
+                  groupedTags[tag.group].push(tag)
+                } else {
+                  ungroupedTags.push(tag)
+                }
+              })
+
+              return (
+                <>
+                  {/* 分组标签 */}
+                  {Object.entries(groupedTags).map(([groupName, groupTags]) => (
+                    <div key={groupName} className="space-y-1">
+                      <div className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500">
+                        {groupName}
+                      </div>
+                      {groupTags.map((tag) => {
+                        const isSelected = filter.tagIds.includes(tag.id)
+                        const tagColor = getTagColor(tag.name)
+                        return (
+                          <button
+                            key={tag.id}
+                            onClick={() => {
+                              setFilter({
+                                tagIds: isSelected ? [] : [tag.id],
+                              })
+                            }}
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-sm ${
+                              isSelected
+                                ? `${tagColor.bg} ${tagColor.text} border ${tagColor.border}`
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <Tag size={16} className={isSelected ? tagColor.text : ''} />
+                            <span className="flex-1 text-left truncate">#{tag.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                  
+                  {/* 未分组标签 */}
+                  {ungroupedTags.length > 0 && (
+                    <div className="space-y-1">
+                      {Object.keys(groupedTags).length > 0 && (
+                        <div className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500">
+                          其他
+                        </div>
+                      )}
+                      {ungroupedTags.map((tag) => {
+                        const isSelected = filter.tagIds.includes(tag.id)
+                        const tagColor = getTagColor(tag.name)
+                        return (
+                          <button
+                            key={tag.id}
+                            onClick={() => {
+                              setFilter({
+                                tagIds: isSelected ? [] : [tag.id],
+                              })
+                            }}
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-sm ${
+                              isSelected
+                                ? `${tagColor.bg} ${tagColor.text} border ${tagColor.border}`
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <Tag size={16} className={isSelected ? tagColor.text : ''} />
+                            <span className="flex-1 text-left truncate">#{tag.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         </div>
       </div>

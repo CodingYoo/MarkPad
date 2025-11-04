@@ -13,32 +13,40 @@ export const TagModal = ({ isOpen, onClose }: TagModalProps) => {
   const { tags, createTag, updateTag, deleteTag } = useStore()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
+  const [newGroup, setNewGroup] = useState<string>('')
   const [isAdding, setIsAdding] = useState(false)
 
   const handleAdd = () => {
     if (!newName.trim()) return
-    createTag(newName.trim())
+    createTag(newName.trim(), newGroup || undefined)
     setNewName('')
+    setNewGroup('')
     setIsAdding(false)
   }
 
   const handleEdit = (tag: TagType) => {
     setEditingId(tag.id)
     setNewName(tag.name)
+    setNewGroup(tag.group || '')
   }
 
   const handleUpdate = () => {
     if (!newName.trim() || !editingId) return
-    updateTag(editingId, newName.trim())
+    updateTag(editingId, newName.trim(), newGroup || undefined)
     setEditingId(null)
     setNewName('')
+    setNewGroup('')
   }
 
   const handleCancel = () => {
     setEditingId(null)
     setIsAdding(false)
     setNewName('')
+    setNewGroup('')
   }
+
+  // Get unique groups
+  const groups = Array.from(new Set(tags.filter(t => t.group).map(t => t.group)))
 
   const handleDelete = (id: string) => {
     if (confirm('确定要删除这个标签吗？关联的便签不会被删除。')) {
@@ -57,17 +65,35 @@ export const TagModal = ({ isOpen, onClose }: TagModalProps) => {
             {editingId === tag.id ? (
               <>
                 <Tag size={18} className="text-gray-600 dark:text-gray-400" />
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleUpdate()
-                    if (e.key === 'Escape') handleCancel()
-                  }}
-                  className="flex-1 px-3 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
-                />
+                <div className="flex-1 space-y-2">
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleUpdate()
+                      if (e.key === 'Escape') handleCancel()
+                    }}
+                    placeholder="标签名称"
+                    className="w-full px-3 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  <input
+                    type="text"
+                    value={newGroup}
+                    onChange={(e) => setNewGroup(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleUpdate()
+                      if (e.key === 'Escape') handleCancel()
+                    }}
+                    placeholder="分组名（可选，同组标签互斥）"
+                    list="groups"
+                    className="w-full px-3 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <datalist id="groups">
+                    {groups.map(g => <option key={g} value={g} />)}
+                  </datalist>
+                </div>
                 <button
                   onClick={handleUpdate}
                   className="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
@@ -84,9 +110,16 @@ export const TagModal = ({ isOpen, onClose }: TagModalProps) => {
             ) : (
               <>
                 <Tag size={18} className="text-gray-600 dark:text-gray-400" />
-                <span className="flex-1 text-gray-900 dark:text-white">
-                  {tag.name}
-                </span>
+                <div className="flex-1">
+                  <div className="text-gray-900 dark:text-white">
+                    {tag.name}
+                  </div>
+                  {tag.group && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      分组: {tag.group}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => handleEdit(tag)}
                   className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -107,18 +140,35 @@ export const TagModal = ({ isOpen, onClose }: TagModalProps) => {
         {isAdding ? (
           <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
             <Tag size={18} className="text-gray-600 dark:text-gray-400" />
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAdd()
-                if (e.key === 'Escape') handleCancel()
-              }}
-              placeholder="标签名称..."
-              className="flex-1 px-3 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
+            <div className="flex-1 space-y-2">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAdd()
+                  if (e.key === 'Escape') handleCancel()
+                }}
+                placeholder="标签名称"
+                className="w-full px-3 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={newGroup}
+                onChange={(e) => setNewGroup(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAdd()
+                  if (e.key === 'Escape') handleCancel()
+                }}
+                placeholder="分组名（可选，同组标签互斥）"
+                list="groups"
+                className="w-full px-3 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <datalist id="groups">
+                {groups.map(g => <option key={g} value={g} />)}
+              </datalist>
+            </div>
             <button
               onClick={handleAdd}
               className="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
