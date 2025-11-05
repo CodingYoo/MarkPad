@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
-import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown, List } from 'lucide-react'
+import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown, List, ChevronDown, ChevronRight } from 'lucide-react'
 import { ContextMenu } from './ContextMenu'
 import { ExportProgress } from './ExportProgress'
 import { getTagColor } from '../utils'
@@ -11,6 +11,11 @@ interface TocItem {
   id: string
   text: string
   level: number
+}
+
+interface TocSection {
+  item: TocItem
+  children: TocItem[]
 }
 
 // 根据标题文本生成 ID（类似 GitHub 的方案）
@@ -25,6 +30,34 @@ const createHeadingId = (text: string, index: number) => {
   
   // 如果 slug 为空（比如纯符号标题），使用索引
   return slug || `heading-${index}`
+}
+
+// 组织目录为层级结构
+const organizeTocSections = (tocItems: TocItem[]): TocSection[] => {
+  const sections: TocSection[] = []
+  let currentH1: TocSection | null = null
+
+  for (const item of tocItems) {
+    if (item.level === 1) {
+      // 创建新的一级章节
+      currentH1 = { item, children: [] }
+      sections.push(currentH1)
+    } else if (item.level === 2) {
+      // 添加到当前一级章节的子项
+      if (currentH1) {
+        currentH1.children.push(item)
+      } else {
+        // 如果没有一级标题，创建一个虚拟的
+        currentH1 = { 
+          item: { id: '', text: '', level: 1 }, 
+          children: [item] 
+        }
+        sections.push(currentH1)
+      }
+    }
+  }
+
+  return sections
 }
 
 const extractHeadingData = (markdown: string): { tocItems: TocItem[]; headingTexts: string[] } => {
@@ -104,11 +137,81 @@ export const Editor = () => {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showExportProgress, setShowExportProgress] = useState(false)
   const [showToc, setShowToc] = useState(true)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const { tocItems: toc, headingTexts } = useMemo(() => extractHeadingData(content), [content])
+  const tocSections = useMemo(() => organizeTocSections(toc), [toc])
+  
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId)
+      } else {
+        newSet.add(sectionId)
+      }
+      return newSet
+    })
+  }
+
+  // 渲染层级目录
+  const renderTocSections = () => {
+    if (tocSections.length === 0) return null
+
+    return tocSections.map((section, index) => {
+      const hasH1 = section.item.id !== ''
+      const isCollapsed = collapsedSections.has(section.item.id)
+      const hasChildren = section.children.length > 0
+
+      return (
+        <div key={section.item.id || `section-${index}`} className="mb-1">
+          {hasH1 && (
+            <div className="flex items-center gap-1">
+              {hasChildren && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSection(section.item.id)
+                  }}
+                  className="flex-shrink-0 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition"
+                >
+                  {isCollapsed ? (
+                    <ChevronRight size={14} className="text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <ChevronDown size={14} className="text-gray-500 dark:text-gray-400" />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => scrollToHeading(section.item.id)}
+                className="flex-1 text-left text-sm font-semibold text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1.5 transition"
+              >
+                {section.item.text}
+              </button>
+            </div>
+          )}
+          
+          {/* 二级标题 */}
+          {!isCollapsed && hasChildren && (
+            <div className="ml-5 mt-0.5 space-y-0.5">
+              {section.children.map((child) => (
+                <button
+                  key={child.id}
+                  onClick={() => scrollToHeading(child.id)}
+                  className="block w-full text-left text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1.5 transition"
+                >
+                  {child.text}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    })
+  }
 
   const scrollToHeading = (id: string) => {
     console.log('🔍 正在跳转到标题，ID:', id)
@@ -532,13 +635,19 @@ export const Editor = () => {
       <div className="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex flex-col">
         {/* Fullscreen Header */}
         <div className="flex items-center justify-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 relative">
-          <button
-            onClick={() => setShowToc(!showToc)}
-            className="absolute left-6 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-            title={showToc ? '隐藏目录' : '显示目录'}
-          >
-            <List size={24} className="text-gray-600 dark:text-gray-400" />
-          </button>
+          {tocSections.length > 0 && (
+            <button
+              onClick={() => setShowToc(!showToc)}
+              className={`absolute left-6 p-2 rounded-lg transition ${
+                showToc
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+              }`}
+              title={showToc ? '隐藏目录' : '显示目录'}
+            >
+              <List size={24} />
+            </button>
+          )}
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white text-center">
             {title || '无标题'}
           </h3>
@@ -554,24 +663,12 @@ export const Editor = () => {
         {/* Fullscreen Content with TOC */}
         <div className="flex-1 flex overflow-hidden">
           {/* Table of Contents */}
-          {showToc && toc.length > 0 && (
+          {showToc && tocSections.length > 0 && (
             <div className="w-64 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
               <div className="p-4">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">目录</h4>
-                <nav className="space-y-0.5">
-                  {toc.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => scrollToHeading(item.id)}
-                      className={`block w-full text-left text-sm hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-3 py-2 transition ${
-                        item.level === 1 
-                          ? 'font-semibold text-gray-800 dark:text-gray-200' 
-                          : 'text-gray-600 dark:text-gray-400 pl-6'
-                      }`}
-                    >
-                      {item.text}
-                    </button>
-                  ))}
+                <nav>
+                  {renderTocSections()}
                 </nav>
               </div>
             </div>
@@ -953,7 +1050,7 @@ export const Editor = () => {
           </div>
           {(showPreview || splitMode) && (
             <div className="flex items-center gap-2">
-              {showPreview && toc.length > 0 && (
+              {showPreview && tocSections.length > 0 && (
                 <button
                   onClick={() => setShowToc(!showToc)}
                   className={`p-1.5 rounded transition ${
@@ -1017,24 +1114,12 @@ export const Editor = () => {
           /* Preview Only */
           <div className="flex-1 flex overflow-hidden">
             {/* TOC for Preview Mode */}
-            {showToc && toc.length > 0 && (
-              <div className="w-48 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
+            {showToc && tocSections.length > 0 && (
+              <div className="w-56 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
                 <div className="p-3">
                   <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">目录</h4>
-                  <nav className="space-y-0.5">
-                    {toc.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => scrollToHeading(item.id)}
-                        className={`block w-full text-left text-xs hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1.5 transition ${
-                          item.level === 1 
-                            ? 'font-semibold text-gray-800 dark:text-gray-200' 
-                            : 'text-gray-600 dark:text-gray-400 pl-4'
-                        }`}
-                      >
-                        {item.text}
-                      </button>
-                    ))}
+                  <nav>
+                    {renderTocSections()}
                   </nav>
                 </div>
               </div>
