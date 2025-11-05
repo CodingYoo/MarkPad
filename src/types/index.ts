@@ -23,6 +23,7 @@ export interface Folder {
   id: string
   name: string
   projectId: string | null
+  typeId: string | null
   createdAt: string
 }
 

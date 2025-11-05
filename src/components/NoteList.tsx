@@ -177,11 +177,11 @@ export const NoteList = () => {
     }
   }, [contextMenu])
 
-  // Filter folders by current project
+  // Filter folders by current project and type
   const filteredFolders = useMemo(() => {
     let result = [...folders]
     
-    // 在"所有便签"模式下（没有选择项目），显示所有文件夹
+    // 在"所有便签"模式下（没有选择项目和类型），显示所有文件夹
     if (!filter.projectId && !filter.typeId && filter.tagIds.length === 0) {
       // 所有便签模式：显示所有文件夹，按项目分组排序
       result.sort((a, b) => {
@@ -195,8 +195,18 @@ export const NoteList = () => {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       })
     } else {
-      // 否则只显示当前项目的文件夹
-      result = result.filter(folder => folder.projectId === filter.projectId)
+      // 否则根据当前过滤条件显示文件夹
+      result = result.filter(folder => {
+        // 必须匹配项目（如果有选择项目）
+        if (filter.projectId && folder.projectId !== filter.projectId) {
+          return false
+        }
+        // 必须匹配类型（如果有选择类型）
+        if (filter.typeId && folder.typeId !== filter.typeId) {
+          return false
+        }
+        return true
+      })
       result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
     }
     
@@ -293,17 +303,18 @@ export const NoteList = () => {
             <p className="text-gray-500 dark:text-gray-400">暂无便签</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* Folders */}
             {filteredFolders.map((folder) => {
               const folderNotes = notesByFolder[folder.id] || []
               const isExpanded = expandedFolders.has(folder.id)
               const isEditing = editingFolderId === folder.id
               const folderProject = projects.find(p => p.id === folder.projectId)
-              const showProjectTag = !filter.projectId && !filter.typeId && filter.tagIds.length === 0
+              const folderType = types.find(t => t.id === folder.typeId)
+              const showTags = !filter.projectId && !filter.typeId && filter.tagIds.length === 0
               
               return (
-                <div key={folder.id} className="space-y-2">
+                <div key={folder.id} className="space-y-1.5">
                   {/* Folder Header */}
                   <div 
                     className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -338,22 +349,31 @@ export const NoteList = () => {
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <div className="flex-1 flex items-center gap-2" onClick={() => toggleFolder(folder.id)}>
+                      <div className="flex-1 flex items-center gap-1.5" onClick={() => toggleFolder(folder.id)}>
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                           {folder.name}
                         </span>
-                        {showProjectTag && folderProject && (
-                          <span 
-                            className="px-1.5 py-0.5 text-xs rounded"
-                            style={{ 
-                              backgroundColor: `${folderProject.color}20`,
-                              color: folderProject.color,
-                              border: `1px solid ${folderProject.color}40`
-                            }}
-                          >
-                            {folderProject.name}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {showTags && folderProject && (
+                            <span 
+                              className="px-1.5 py-0.5 text-xs rounded"
+                              style={{ 
+                                backgroundColor: `${folderProject.color}20`,
+                                color: folderProject.color,
+                                border: `1px solid ${folderProject.color}40`
+                              }}
+                            >
+                              {folderProject.name}
+                            </span>
+                          )}
+                          {showTags && folderType && (
+                            <span 
+                              className="px-1.5 py-0.5 text-xs rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                            >
+                              {folderType.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                     <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -363,61 +383,65 @@ export const NoteList = () => {
                   
                   {/* Folder Notes */}
                   {isExpanded && (
-                    <div className="ml-4 space-y-2">
+                    <div className="ml-3 space-y-1.5">
                       {folderNotes.map((note) => (
                         <div
                           key={note.id}
                           onClick={() => setCurrentNote(note.id)}
-                          className={`p-4 rounded-lg cursor-pointer transition-all duration-200 border ${
+                          className={`p-2.5 rounded-lg cursor-pointer transition-all duration-200 border ${
                             currentNoteId === note.id
                               ? 'bg-white dark:bg-gray-800 shadow-lg border-blue-500 dark:border-blue-600'
                               : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700'
                           }`}
                         >
                           {/* Title and Pin */}
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="flex-1 font-semibold text-base text-gray-900 dark:text-white truncate pr-2">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <h4 className="flex-1 font-medium text-sm text-gray-900 dark:text-white truncate pr-2">
                               {note.title}
                             </h4>
                             {note.isPinned && (
-                              <Pin size={16} className="text-blue-500 dark:text-blue-400 flex-shrink-0 fill-current" />
+                              <Pin size={14} className="text-blue-500 dark:text-blue-400 flex-shrink-0 fill-current" />
                             )}
                           </div>
 
                           {/* Content Preview */}
-                          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
-                            {note.content || '无内容'}
-                          </p>
+                          {note.content && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 mb-2 leading-relaxed">
+                              {note.content}
+                            </p>
+                          )}
 
-                          {/* Tags and Time */}
-                          <div className="space-y-2">
+                          {/* Tags and Time in one row */}
+                          <div className="flex items-center justify-between gap-2">
                             {/* Tags */}
-                            {note.tagIds.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5">
-                                {note.tagIds.slice(0, 3).map((tagId) => {
+                            {note.tagIds.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {note.tagIds.slice(0, 2).map((tagId) => {
                                   const tag = tags.find((t) => t.id === tagId)
                                   if (!tag) return null
                                   const tagColor = getTagColor(tag.name)
                                   return (
                                     <span
                                       key={tag.id}
-                                      className={`px-2.5 py-1 text-xs font-medium rounded-full border ${tagColor.bg} ${tagColor.text} ${tagColor.border}`}
+                                      className={`px-1.5 py-0.5 text-xs rounded border ${tagColor.bg} ${tagColor.text} ${tagColor.border}`}
                                     >
                                       #{tag.name}
                                     </span>
                                   )
                                 })}
-                                {note.tagIds.length > 3 && (
-                                  <span className="px-2.5 py-1 text-xs font-medium bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 rounded-full border border-gray-200 dark:border-gray-600">
-                                    +{note.tagIds.length - 3}
+                                {note.tagIds.length > 2 && (
+                                  <span className="px-1.5 py-0.5 text-xs bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-600">
+                                    +{note.tagIds.length - 2}
                                   </span>
                                 )}
                               </div>
+                            ) : (
+                              <div />
                             )}
 
                             {/* Time */}
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-500">
-                              <Clock size={12} />
+                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">
+                              <Clock size={11} />
                               <span>{formatDetailedDate(note.updatedAt)}</span>
                             </div>
                           </div>
@@ -434,56 +458,60 @@ export const NoteList = () => {
               <div
                 key={note.id}
                 onClick={() => setCurrentNote(note.id)}
-                className={`p-4 rounded-lg cursor-pointer transition-all duration-200 border ${
+                className={`p-2.5 rounded-lg cursor-pointer transition-all duration-200 border ${
                   currentNoteId === note.id
                     ? 'bg-white dark:bg-gray-800 shadow-lg border-blue-500 dark:border-blue-600'
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700'
                 }`}
               >
                 {/* Title and Pin */}
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="flex-1 font-semibold text-base text-gray-900 dark:text-white truncate pr-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="flex-1 font-medium text-sm text-gray-900 dark:text-white truncate pr-2">
                     {note.title}
                   </h4>
                   {note.isPinned && (
-                    <Pin size={16} className="text-blue-500 dark:text-blue-400 flex-shrink-0 fill-current" />
+                    <Pin size={14} className="text-blue-500 dark:text-blue-400 flex-shrink-0 fill-current" />
                   )}
                 </div>
 
                 {/* Content Preview */}
-                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
-                  {note.content || '无内容'}
-                </p>
+                {note.content && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 mb-2 leading-relaxed">
+                    {note.content}
+                  </p>
+                )}
 
-                {/* Tags and Time */}
-                <div className="space-y-2">
+                {/* Tags and Time in one row */}
+                <div className="flex items-center justify-between gap-2">
                   {/* Tags */}
-                  {note.tagIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {note.tagIds.slice(0, 3).map((tagId) => {
+                  {note.tagIds.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {note.tagIds.slice(0, 2).map((tagId) => {
                         const tag = tags.find((t) => t.id === tagId)
                         if (!tag) return null
                         const tagColor = getTagColor(tag.name)
                         return (
                           <span
                             key={tag.id}
-                            className={`px-2.5 py-1 text-xs font-medium rounded-full border ${tagColor.bg} ${tagColor.text} ${tagColor.border}`}
+                            className={`px-1.5 py-0.5 text-xs rounded border ${tagColor.bg} ${tagColor.text} ${tagColor.border}`}
                           >
                             #{tag.name}
                           </span>
                         )
                       })}
-                      {note.tagIds.length > 3 && (
-                        <span className="px-2.5 py-1 text-xs font-medium bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 rounded-full border border-gray-200 dark:border-gray-600">
-                          +{note.tagIds.length - 3}
+                      {note.tagIds.length > 2 && (
+                        <span className="px-1.5 py-0.5 text-xs bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-600">
+                          +{note.tagIds.length - 2}
                         </span>
                       )}
                     </div>
+                  ) : (
+                    <div />
                   )}
 
                   {/* Time */}
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-500">
-                    <Clock size={12} />
+                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">
+                    <Clock size={11} />
                     <span>{formatDetailedDate(note.updatedAt)}</span>
                   </div>
                 </div>

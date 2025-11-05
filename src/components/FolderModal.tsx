@@ -13,7 +13,7 @@ export const FolderModal = ({ isOpen, onClose }: FolderModalProps) => {
 
   const handleCreate = () => {
     if (folderName.trim()) {
-      createFolder(folderName.trim(), filter.projectId)
+      createFolder(folderName.trim(), filter.projectId, filter.typeId)
       setFolderName('')
       onClose()
     }
