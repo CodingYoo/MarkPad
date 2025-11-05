@@ -70,6 +70,11 @@ code {
   max-width: 65ch;
 }
 
+/* 全屏预览模式：移除宽度限制 */
+.prose.max-w-none {
+  max-width: none !important;
+}
+
 .dark .prose {
   color: #d1d5db;
 }

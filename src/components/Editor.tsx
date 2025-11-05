@@ -764,7 +764,7 @@ export const Editor = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto" ref={contentRef}>
-            <div className="max-w-4xl mx-auto px-8 py-8 prose prose-lg dark:prose-invert">
+            <div className="prose prose-lg dark:prose-invert max-w-none" style={{ width: '80%', margin: '0 auto', padding: '2rem' }}>
               {(() => {
                 let headingIndex = -1
                 const createHeading = (Tag: keyof JSX.IntrinsicElements) => {
