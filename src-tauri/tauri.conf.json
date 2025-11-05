@@ -21,9 +21,16 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "wix": {
+        "language": ["zh-CN"]
+      },
+      "nsis": {
+        "languages": ["SimpChinese"],
+        "displayLanguageSelector": false
+      }
     },
-    "longDescription": "",
+    "longDescription": "一款基于 Tauri + React 开发的桌面端 Markdown 便签应用",
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",
@@ -33,9 +40,9 @@
     },
     "resources": [],
     "externalBin": [],
-    "copyright": "",
+    "copyright": "Copyright © 2025",
     "category": "Productivity",
-    "shortDescription": "A Markdown note-taking desktop app"
+    "shortDescription": "Markdown 便签应用"
   },
   "app": {
     "windows": [
