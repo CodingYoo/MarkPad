@@ -1,7 +1,6 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
 use std::fs;
 use std::path::PathBuf;
 use base64::{Engine as _, engine::general_purpose};
@@ -16,7 +15,7 @@ struct ImageInfo {
 }
 
 // 获取应用数据目录（安装目录下的data文件夹）
-fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn get_app_data_dir(_app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     // 获取应用可执行文件所在目录
     let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
     let app_dir = exe_path
@@ -162,10 +161,10 @@ fn main() {
             get_images,
             delete_image
         ])
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
+                let window = _app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
             Ok(())
