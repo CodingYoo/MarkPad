@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { 
-  Heading1, Heading2, Heading3, 
+  Heading1, Heading2, Heading3, Heading4, Heading5, Heading6,
   Bold, Italic, Code, Link,
   List, ListOrdered, CheckSquare,
   Table, Image as ImageIcon, Quote,
-  Minus, FileCode
+  Minus, FileCode, Highlighter
 } from 'lucide-react'
 
 interface ContextMenuProps {
@@ -71,38 +71,64 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
       label: '标题', 
       icon: Heading1,
       children: [
-        { label: 'H1', icon: Heading1, action: 'heading', value: '1' },
-        { label: 'H2', icon: Heading2, action: 'heading', value: '2' },
-        { label: 'H3', icon: Heading3, action: 'heading', value: '3' },
+        { label: 'H1 - 一级标题', icon: Heading1, action: 'heading', value: '1', shortcut: 'Ctrl+1' },
+        { label: 'H2 - 二级标题', icon: Heading2, action: 'heading', value: '2', shortcut: 'Ctrl+2' },
+        { label: 'H3 - 三级标题', icon: Heading3, action: 'heading', value: '3', shortcut: 'Ctrl+3' },
+        { label: 'H4 - 四级标题', icon: Heading4, action: 'heading', value: '4', shortcut: 'Ctrl+4' },
+        { label: 'H5 - 五级标题', icon: Heading5, action: 'heading', value: '5', shortcut: 'Ctrl+5' },
+        { label: 'H6 - 六级标题', icon: Heading6, action: 'heading', value: '6', shortcut: 'Ctrl+6' },
       ]
     },
     { type: 'divider' } as const,
     { 
-      label: '格式', 
+      label: '文本格式', 
       icon: Bold,
       children: [
-        { label: '粗体', icon: Bold, action: 'bold', value: undefined },
-        { label: '斜体', icon: Italic, action: 'italic', value: undefined },
+        { label: '粗体', icon: Bold, action: 'bold', value: undefined, shortcut: 'Ctrl+B' },
+        { label: '斜体', icon: Italic, action: 'italic', value: undefined, shortcut: 'Ctrl+I' },
         { label: '删除线', icon: Minus, action: 'strikethrough', value: undefined },
-        { label: '行内代码', icon: Code, action: 'inline-code', value: undefined },
+        { label: '高亮', icon: Highlighter, action: 'highlight', value: undefined },
+        { label: '行内代码', icon: Code, action: 'inline-code', value: undefined, shortcut: 'Ctrl+`' },
       ]
     },
     { 
       label: '列表', 
       icon: List,
       children: [
-        { label: '无序列表', icon: List, action: 'unordered-list', value: undefined },
-        { label: '有序列表', icon: ListOrdered, action: 'ordered-list', value: undefined },
-        { label: '任务列表', icon: CheckSquare, action: 'task-list', value: undefined },
+        { label: '无序列表', icon: List, action: 'unordered-list', value: undefined, shortcut: 'Ctrl+U' },
+        { label: '有序列表', icon: ListOrdered, action: 'ordered-list', value: undefined, shortcut: 'Ctrl+O' },
+        { label: '任务列表', icon: CheckSquare, action: 'task-list', value: undefined, shortcut: 'Ctrl+T' },
       ]
     },
     { type: 'divider' } as const,
-    { label: '链接', icon: Link, action: 'link' },
-    { label: '图片', icon: ImageIcon, action: 'image' },
-    { label: '引用', icon: Quote, action: 'quote' },
-    { label: '代码块', icon: FileCode, action: 'code-block' },
-    { label: '表格', icon: Table, action: 'table' },
-    { label: '分隔线', icon: Minus, action: 'horizontal-rule' },
+    { 
+      label: '代码块', 
+      icon: FileCode,
+      children: [
+        { label: 'JavaScript', icon: FileCode, action: 'code-block', value: 'javascript' },
+        { label: 'TypeScript', icon: FileCode, action: 'code-block', value: 'typescript' },
+        { label: 'Python', icon: FileCode, action: 'code-block', value: 'python' },
+        { label: 'Java', icon: FileCode, action: 'code-block', value: 'java' },
+        { label: 'C/C++', icon: FileCode, action: 'code-block', value: 'cpp' },
+        { label: 'C#', icon: FileCode, action: 'code-block', value: 'csharp' },
+        { label: 'Go', icon: FileCode, action: 'code-block', value: 'go' },
+        { label: 'Rust', icon: FileCode, action: 'code-block', value: 'rust' },
+        { label: 'PHP', icon: FileCode, action: 'code-block', value: 'php' },
+        { label: 'Ruby', icon: FileCode, action: 'code-block', value: 'ruby' },
+        { label: 'HTML', icon: FileCode, action: 'code-block', value: 'html' },
+        { label: 'CSS', icon: FileCode, action: 'code-block', value: 'css' },
+        { label: 'SQL', icon: FileCode, action: 'code-block', value: 'sql' },
+        { label: 'Shell', icon: FileCode, action: 'code-block', value: 'bash' },
+        { label: 'JSON', icon: FileCode, action: 'code-block', value: 'json' },
+        { label: 'Markdown', icon: FileCode, action: 'code-block', value: 'markdown' },
+        { label: '纯文本', icon: FileCode, action: 'code-block', value: '' },
+      ]
+    },
+    { label: '链接', icon: Link, action: 'link', shortcut: 'Ctrl+K' },
+    { label: '图片', icon: ImageIcon, action: 'image', shortcut: 'Ctrl+Shift+I' },
+    { label: '引用', icon: Quote, action: 'quote', shortcut: 'Ctrl+Q' },
+    { label: '表格', icon: Table, action: 'table', shortcut: 'Ctrl+Shift+T' },
+    { label: '分隔线', icon: Minus, action: 'horizontal-rule', shortcut: 'Ctrl+H' },
   ]
 
   return (
@@ -154,13 +180,18 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
                       <button
                         key={childIndex}
                         onClick={() => {
-                          onSelect(child.action, child.value || '')
+                          onSelect(child.action, child.value !== undefined ? child.value : '')
                           onClose()
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         {child.icon && <child.icon size={16} />}
-                        <span>{child.label}</span>
+                        <span className="flex-1 text-left">{child.label}</span>
+                        {child.shortcut && (
+                          <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">
+                            {child.shortcut}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -180,7 +211,12 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               {Icon && <Icon size={16} />}
-              <span>{item.label}</span>
+              <span className="flex-1 text-left">{item.label}</span>
+              {item.shortcut && (
+                <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">
+                  {item.shortcut}
+                </span>
+              )}
             </button>
           )
         })}

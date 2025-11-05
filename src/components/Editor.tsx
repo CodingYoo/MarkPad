@@ -1,11 +1,15 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import * as themes from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useStore } from '../store'
-import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown, List, ChevronDown, ChevronRight } from 'lucide-react'
+import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown, List, ChevronDown, ChevronRight, Palette } from 'lucide-react'
 import { ContextMenu } from './ContextMenu'
 import { ExportProgress } from './ExportProgress'
 import { getTagColor } from '../utils'
+import { CodeTheme } from '../types'
 
 interface TocItem {
   id: string
@@ -118,8 +122,22 @@ const extractHeadingData = (markdown: string): { tocItems: { id: string; text: s
   return { tocItems, headingTexts }
 }
 
+// 代码主题映射
+const codeThemeMap: Record<CodeTheme, any> = {
+  oneDark: themes.oneDark,
+  oneLight: themes.oneLight,
+  github: themes.prism,
+  githubDark: themes.vscDarkPlus,
+  vscDark: themes.vscDarkPlus,
+  dracula: themes.dracula,
+  nightOwl: themes.nightOwl,
+  nord: themes.nord,
+  atomDark: themes.atomDark,
+  materialDark: themes.materialDark,
+}
+
 export const Editor = () => {
-  const { notes, currentNoteId, updateNote, deleteNote, togglePinNote, projects, types, tags } = useStore()
+  const { notes, currentNoteId, updateNote, deleteNote, togglePinNote, projects, types, tags, settings, updateSettings } = useStore()
   const currentNote = notes.find((note) => note.id === currentNoteId)
 
   const [title, setTitle] = useState('')
@@ -132,13 +150,46 @@ export const Editor = () => {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showExportProgress, setShowExportProgress] = useState(false)
   const [showToc, setShowToc] = useState(true)
+  const [showCodeThemeMenu, setShowCodeThemeMenu] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  const codeThemeMenuRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const { tocItems: flatToc, headingTexts } = useMemo(() => extractHeadingData(content), [content])
+  const { tocItems: flatToc } = useMemo(() => extractHeadingData(content), [content])
   const tocTree = useMemo(() => organizeTocSections(flatToc), [flatToc])
+  
+  // 预处理markdown内容，支持高亮语法 ==text==
+  const preprocessMarkdown = (markdown: string) => {
+    return markdown.replace(/==([^=]+)==/g, '<mark>$1</mark>')
+  }
+  
+  // 自定义代码块渲染组件
+  const CodeBlock = ({ inline, className, children, ...props }: any) => {
+    const match = /language-(\w+)/.exec(className || '')
+    const language = match ? match[1] : ''
+    
+    if (inline) {
+      return <code className={className} {...props}>{children}</code>
+    }
+    
+    return (
+      <SyntaxHighlighter
+        language={language}
+        style={codeThemeMap[settings.codeTheme]}
+        customStyle={{
+          margin: '1.5em 0',
+          borderRadius: '0.5rem',
+          fontSize: '0.875em',
+          padding: '1em',
+        }}
+        {...props}
+      >
+        {String(children).replace(/\n$/, '')}
+      </SyntaxHighlighter>
+    )
+  }
   
   const toggleSection = (sectionId: string) => {
     setCollapsedSections(prev => {
@@ -313,6 +364,8 @@ export const Editor = () => {
           setShowTagMenu(false)
         } else if (showExportMenu) {
           setShowExportMenu(false)
+        } else if (showCodeThemeMenu) {
+          setShowCodeThemeMenu(false)
         }
       }
     }
@@ -324,10 +377,13 @@ export const Editor = () => {
       if (showExportMenu && exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
         setShowExportMenu(false)
       }
+      if (showCodeThemeMenu && codeThemeMenuRef.current && !codeThemeMenuRef.current.contains(e.target as Node)) {
+        setShowCodeThemeMenu(false)
+      }
     }
 
     document.addEventListener('keydown', handleEscape)
-    if (showTagMenu || showExportMenu) {
+    if (showTagMenu || showExportMenu || showCodeThemeMenu) {
       // Delay adding the click listener to avoid immediate closure
       setTimeout(() => {
         document.addEventListener('click', handleClickOutside)
@@ -338,7 +394,7 @@ export const Editor = () => {
       document.removeEventListener('keydown', handleEscape)
       document.removeEventListener('click', handleClickOutside)
     }
-  }, [fullscreenPreview, showTagMenu, showExportMenu])
+  }, [fullscreenPreview, showTagMenu, showExportMenu, showCodeThemeMenu])
 
   const handleContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
@@ -514,6 +570,11 @@ export const Editor = () => {
         cursorOffset = selectedText ? insertText.length : insertText.length - 2
         break
       
+      case 'highlight':
+        insertText = `==${selectedText || '高亮文字'}==`
+        cursorOffset = selectedText ? insertText.length : insertText.length - 2
+        break
+      
       case 'link':
         insertText = `[${selectedText || '链接文字'}](url)`
         cursorOffset = insertText.length - 4
@@ -545,8 +606,16 @@ export const Editor = () => {
         break
       
       case 'code-block':
-        insertText = `\`\`\`javascript\n${selectedText || '// 代码'}\n\`\`\`\n`
-        cursorOffset = selectedText ? insertText.length : 16
+        const language = value || 'javascript'
+        const placeholder = language === 'python' ? '# 代码' : 
+                           language === 'java' ? '// 代码' :
+                           language === 'html' ? '<!-- 代码 -->' :
+                           language === 'css' ? '/* 代码 */' :
+                           language === 'bash' ? '# 代码' :
+                           language === '' ? '代码' :
+                           '// 代码'
+        insertText = `\`\`\`${language}\n${selectedText || placeholder}\n\`\`\`\n`
+        cursorOffset = selectedText ? insertText.length : (4 + language.length + 1)
         break
       
       case 'table':
@@ -719,6 +788,7 @@ export const Editor = () => {
                 return (
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
                     components={{
                       h1: createHeading('h1'),
                       h2: createHeading('h2'),
@@ -726,6 +796,7 @@ export const Editor = () => {
                       h4: createHeading('h4'),
                       h5: createHeading('h5'),
                       h6: createHeading('h6'),
+                      code: CodeBlock,
                       img: ({node, ...props}) => (
                         <img 
                           {...props} 
@@ -735,7 +806,7 @@ export const Editor = () => {
                       )
                     }}
                   >
-                    {content || '*暂无内容*'}
+                    {preprocessMarkdown(content) || '*暂无内容*'}
                   </ReactMarkdown>
                 )
               })()}
@@ -968,6 +1039,58 @@ export const Editor = () => {
           >
             <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
+          <div className="relative" ref={codeThemeMenuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowCodeThemeMenu(!showCodeThemeMenu)
+              }}
+              className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              title="代码主题"
+            >
+              <Palette size={16} className="sm:w-[18px] sm:h-[18px]" />
+            </button>
+            {showCodeThemeMenu && (
+              <div 
+                className="absolute right-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 max-h-80 overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                  代码主题
+                </div>
+                {[
+                  { value: 'oneDark' as CodeTheme, label: 'One Dark' },
+                  { value: 'oneLight' as CodeTheme, label: 'One Light' },
+                  { value: 'github' as CodeTheme, label: 'GitHub' },
+                  { value: 'githubDark' as CodeTheme, label: 'GitHub Dark' },
+                  { value: 'vscDark' as CodeTheme, label: 'VS Code Dark' },
+                  { value: 'dracula' as CodeTheme, label: 'Dracula' },
+                  { value: 'nightOwl' as CodeTheme, label: 'Night Owl' },
+                  { value: 'nord' as CodeTheme, label: 'Nord' },
+                  { value: 'atomDark' as CodeTheme, label: 'Atom Dark' },
+                  { value: 'materialDark' as CodeTheme, label: 'Material Dark' },
+                ].map((theme) => (
+                  <button
+                    key={theme.value}
+                    onClick={() => {
+                      updateSettings({ codeTheme: theme.value })
+                      setShowCodeThemeMenu(false)
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                      settings.codeTheme === theme.value
+                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <span>{theme.label}</span>
+                    {settings.codeTheme === theme.value && (
+                      <span className="text-blue-600 dark:text-blue-400">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="relative" ref={exportMenuRef}>
             <button
               onClick={(e) => {
@@ -1114,7 +1237,9 @@ export const Editor = () => {
               <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
                   components={{
+                    code: CodeBlock,
                     img: ({node, ...props}) => (
                       <img 
                         {...props} 
@@ -1124,7 +1249,7 @@ export const Editor = () => {
                     )
                   }}
                 >
-                  {content || '*暂无内容*'}
+                  {preprocessMarkdown(content) || '*暂无内容*'}
                 </ReactMarkdown>
               </div>
             </div>
@@ -1168,6 +1293,7 @@ export const Editor = () => {
                   return (
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
                       components={{
                         h1: createHeading('h1'),
                         h2: createHeading('h2'),
@@ -1175,6 +1301,7 @@ export const Editor = () => {
                         h4: createHeading('h4'),
                         h5: createHeading('h5'),
                         h6: createHeading('h6'),
+                        code: CodeBlock,
                         img: ({node, ...props}) => (
                           <img 
                             {...props} 
@@ -1184,7 +1311,7 @@ export const Editor = () => {
                         )
                       }}
                     >
-                      {content || '*暂无内容*'}
+                      {preprocessMarkdown(content) || '*暂无内容*'}
                     </ReactMarkdown>
                   )
                 })()}

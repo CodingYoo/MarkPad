@@ -129,6 +129,7 @@ export const getInitialData = () => {
     notes: [],
     settings: {
       theme: 'light' as const,
+      codeTheme: 'oneDark' as const,
       autoSave: true,
       autoSaveInterval: 3000,
     }

@@ -40,8 +40,21 @@ export interface Note {
   updatedAt: string
 }
 
+export type CodeTheme = 
+  | 'oneDark'
+  | 'oneLight'
+  | 'github'
+  | 'githubDark'
+  | 'vscDark'
+  | 'dracula'
+  | 'nightOwl'
+  | 'nord'
+  | 'atomDark'
+  | 'materialDark'
+
 export interface Settings {
   theme: 'light' | 'dark'
+  codeTheme: CodeTheme
   autoSave: boolean
   autoSaveInterval: number
 }
