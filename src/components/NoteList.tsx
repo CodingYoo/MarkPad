@@ -1,4 +1,6 @@
 import { useMemo, useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
 import { formatDetailedDate, getTagColor } from '../utils'
 import { Search, Pin, ChevronLeft, ChevronRight, Clock, Folder, FolderPlus, ChevronDown, ChevronRight as ChevronRightIcon, Plus } from 'lucide-react'
@@ -406,9 +408,34 @@ export const NoteList = () => {
 
                           {/* Content Preview */}
                           {note.content && (
-                            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 mb-2 leading-relaxed">
-                              {note.content}
-                            </p>
+                            <div className="text-xs text-gray-500 dark:text-gray-500 font-light line-clamp-1 mb-2 leading-relaxed prose-sm prose-preview">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  // 将所有块级元素转为内联元素以适配卡片预览
+                                  p: ({node, ...props}) => <span {...props} />,
+                                  h1: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                                  h2: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                                  h3: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                                  h4: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                                  h5: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                                  h6: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                                  ul: ({node, ...props}) => <span {...props} />,
+                                  ol: ({node, ...props}) => <span {...props} />,
+                                  li: ({node, ...props}) => <span {...props}>• </span>,
+                                  blockquote: ({node, ...props}) => <span {...props} />,
+                                  code: ({node, inline, ...props}: any) => <code {...props} className="bg-gray-100 dark:bg-gray-700/50 px-1 rounded text-xs font-light text-gray-500 dark:text-gray-500" />,
+                                  pre: ({node, ...props}) => <span {...props} />,
+                                  a: ({node, ...props}) => <span {...props} className="text-gray-500 dark:text-gray-500" />,
+                                  img: () => <span className="text-gray-400 dark:text-gray-600">[图片]</span>,
+                                  hr: () => <span> — </span>,
+                                  table: () => <span className="text-gray-400 dark:text-gray-600">[表格]</span>,
+                                  br: () => <span> </span>,
+                                }}
+                              >
+                                {note.content}
+                              </ReactMarkdown>
+                            </div>
                           )}
 
                           {/* Tags and Time in one row */}
@@ -476,9 +503,34 @@ export const NoteList = () => {
 
                 {/* Content Preview */}
                 {note.content && (
-                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 mb-2 leading-relaxed">
-                    {note.content}
-                  </p>
+                  <div className="text-xs text-gray-500 dark:text-gray-500 font-light line-clamp-1 mb-2 leading-relaxed prose-sm prose-preview">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        // 将所有块级元素转为内联元素以适配卡片预览
+                        p: ({node, ...props}) => <span {...props} />,
+                        h1: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                        h2: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                        h3: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                        h4: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                        h5: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                        h6: ({node, ...props}) => <strong {...props} className="font-normal" />,
+                        ul: ({node, ...props}) => <span {...props} />,
+                        ol: ({node, ...props}) => <span {...props} />,
+                        li: ({node, ...props}) => <span {...props}>• </span>,
+                        blockquote: ({node, ...props}) => <span {...props} />,
+                        code: ({node, inline, ...props}: any) => <code {...props} className="bg-gray-100 dark:bg-gray-700/50 px-1 rounded text-xs font-light text-gray-500 dark:text-gray-500" />,
+                        pre: ({node, ...props}) => <span {...props} />,
+                        a: ({node, ...props}) => <span {...props} className="text-gray-500 dark:text-gray-500" />,
+                        img: () => <span className="text-gray-400 dark:text-gray-600">[图片]</span>,
+                        hr: () => <span> — </span>,
+                        table: () => <span className="text-gray-400 dark:text-gray-600">[表格]</span>,
+                        br: () => <span> </span>,
+                      }}
+                    >
+                      {note.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
 
                 {/* Tags and Time in one row */}
