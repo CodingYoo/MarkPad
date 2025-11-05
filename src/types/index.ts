@@ -22,6 +22,7 @@ export interface Tag {
 export interface Folder {
   id: string
   name: string
+  projectId: string | null
   createdAt: string
 }
 

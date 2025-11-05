@@ -8,12 +8,12 @@ interface FolderModalProps {
 }
 
 export const FolderModal = ({ isOpen, onClose }: FolderModalProps) => {
-  const { createFolder } = useStore()
+  const { createFolder, filter } = useStore()
   const [folderName, setFolderName] = useState('')
 
   const handleCreate = () => {
     if (folderName.trim()) {
-      createFolder(folderName.trim())
+      createFolder(folderName.trim(), filter.projectId)
       setFolderName('')
       onClose()
     }

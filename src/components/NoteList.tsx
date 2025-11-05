@@ -177,6 +177,32 @@ export const NoteList = () => {
     }
   }, [contextMenu])
 
+  // Filter folders by current project
+  const filteredFolders = useMemo(() => {
+    let result = [...folders]
+    
+    // 在"所有便签"模式下（没有选择项目），显示所有文件夹
+    if (!filter.projectId && !filter.typeId && filter.tagIds.length === 0) {
+      // 所有便签模式：显示所有文件夹，按项目分组排序
+      result.sort((a, b) => {
+        // 先按项目排序
+        const projectA = projects.find(p => p.id === a.projectId)?.name || ''
+        const projectB = projects.find(p => p.id === b.projectId)?.name || ''
+        if (projectA !== projectB) {
+          return projectA.localeCompare(projectB, 'zh-CN')
+        }
+        // 同一项目内按创建时间排序
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      })
+    } else {
+      // 否则只显示当前项目的文件夹
+      result = result.filter(folder => folder.projectId === filter.projectId)
+      result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    }
+    
+    return result
+  }, [folders, filter.projectId, filter.typeId, filter.tagIds, projects])
+
   // Group notes by folder
   const { notesWithoutFolder, notesByFolder } = useMemo(() => {
     const withoutFolder: typeof filteredNotes = []
@@ -189,12 +215,15 @@ export const NoteList = () => {
         }
         byFolder[note.folderId].push(note)
       } else {
-        withoutFolder.push(note)
+        // 在"所有便签"模式下，不显示没有文件夹的笔记
+        if (filter.projectId || filter.typeId || filter.tagIds.length > 0) {
+          withoutFolder.push(note)
+        }
       }
     })
     
     return { notesWithoutFolder: withoutFolder, notesByFolder: byFolder }
-  }, [filteredNotes])
+  }, [filteredNotes, filter.projectId, filter.typeId, filter.tagIds])
 
   return (
     <div className={`bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -259,17 +288,19 @@ export const NoteList = () => {
 
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto p-2">
-        {filteredNotes.length === 0 ? (
+        {filteredNotes.length === 0 && filteredFolders.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">暂无便签</p>
           </div>
         ) : (
           <div className="space-y-3">
             {/* Folders */}
-            {folders.map((folder) => {
+            {filteredFolders.map((folder) => {
               const folderNotes = notesByFolder[folder.id] || []
               const isExpanded = expandedFolders.has(folder.id)
               const isEditing = editingFolderId === folder.id
+              const folderProject = projects.find(p => p.id === folder.projectId)
+              const showProjectTag = !filter.projectId && !filter.typeId && filter.tagIds.length === 0
               
               return (
                 <div key={folder.id} className="space-y-2">
@@ -307,12 +338,23 @@ export const NoteList = () => {
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <span 
-                        className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300"
-                        onClick={() => toggleFolder(folder.id)}
-                      >
-                        {folder.name}
-                      </span>
+                      <div className="flex-1 flex items-center gap-2" onClick={() => toggleFolder(folder.id)}>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {folder.name}
+                        </span>
+                        {showProjectTag && folderProject && (
+                          <span 
+                            className="px-1.5 py-0.5 text-xs rounded"
+                            style={{ 
+                              backgroundColor: `${folderProject.color}20`,
+                              color: folderProject.color,
+                              border: `1px solid ${folderProject.color}40`
+                            }}
+                          >
+                            {folderProject.name}
+                          </span>
+                        )}
+                      </div>
                     )}
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {folderNotes.length}
@@ -466,7 +508,7 @@ export const NoteList = () => {
             className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <Plus size={16} />
-            <span>新建文章</span>
+            <span>新增便签</span>
           </button>
           <button
             onClick={() => {

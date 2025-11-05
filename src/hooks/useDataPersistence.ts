@@ -88,6 +88,7 @@ export const useDataPersistence = () => {
     store.projects,
     store.types,
     store.tags,
+    store.folders,
     store.settings,
   ])
 }

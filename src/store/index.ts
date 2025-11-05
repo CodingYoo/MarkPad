@@ -29,7 +29,7 @@ interface AppStore extends AppData {
   deleteTag: (id: string) => void
   
   // Folder operations
-  createFolder: (name: string) => void
+  createFolder: (name: string, projectId: string | null) => void
   updateFolder: (id: string, name: string) => void
   deleteFolder: (id: string) => void
   
@@ -199,10 +199,11 @@ export const useStore = create<AppStore>((set, get) => ({
   },
   
   // Folder operations
-  createFolder: (name) => {
+  createFolder: (name, projectId) => {
     const newFolder: Folder = {
       id: generateId(),
       name,
+      projectId,
       createdAt: new Date().toISOString(),
     }
     set((state) => ({
@@ -263,7 +264,16 @@ export const useStore = create<AppStore>((set, get) => ({
   
   // Data operations
   loadData: (data) => {
-    set(data)
+    // Migrate folders: add projectId if missing
+    const migratedFolders = data.folders.map(folder => ({
+      ...folder,
+      projectId: folder.projectId ?? null
+    }))
+    
+    set({
+      ...data,
+      folders: migratedFolders
+    })
   },
   
   exportData: () => {
