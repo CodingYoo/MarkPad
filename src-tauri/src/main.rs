@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 
 #[derive(Serialize, Deserialize)]
 struct ImageInfo {
