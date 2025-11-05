@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
@@ -11,6 +11,83 @@ interface TocItem {
   id: string
   text: string
   level: number
+}
+
+// 根据标题文本生成 ID（类似 GitHub 的方案）
+const createHeadingId = (text: string, index: number) => {
+  // 移除特殊字符，保留中文、英文、数字、空格和连字符
+  const slug = text
+    .toLowerCase()
+    .replace(/[^\u4e00-\u9fa5a-z0-9\s-]/g, '') // 保留中文、英文、数字、空格、连字符
+    .trim()
+    .replace(/\s+/g, '-') // 空格替换为连字符
+    .replace(/-+/g, '-') // 多个连字符合并为一个
+  
+  // 如果 slug 为空（比如纯符号标题），使用索引
+  return slug || `heading-${index}`
+}
+
+const extractHeadingData = (markdown: string): { tocItems: TocItem[]; headingTexts: string[] } => {
+  const lines = markdown.split('\n')
+  const tocItems: TocItem[] = []
+  const headingTexts: string[] = []
+  let inCodeBlock = false
+  let headingCounter = 0
+
+  console.log('📝 开始提取标题...')
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i]
+    const trimmedLine = rawLine.trim()
+
+    if (trimmedLine.startsWith('```')) {
+      inCodeBlock = !inCodeBlock
+      continue
+    }
+
+    if (inCodeBlock || !trimmedLine) {
+      continue
+    }
+
+    const hashMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/)
+    if (hashMatch) {
+      const level = hashMatch[1].length
+      const text = hashMatch[2].trim()
+      const id = createHeadingId(text, headingCounter)
+
+      console.log(`  ${headingCounter}. H${level}: "${text}" → ID: "${id}" ${level <= 2 ? '✓ 加入目录' : ''}`)
+
+      headingTexts.push(text)
+      if (level <= 2) {
+        tocItems.push({ id, text, level })
+      }
+      headingCounter++
+      continue
+    }
+
+    const nextLine = lines[i + 1]
+    if (nextLine) {
+      const setextMatch = nextLine.trim().match(/^(-{3,}|={3,})\s*$/)
+      if (setextMatch) {
+        const level = setextMatch[0].startsWith('=') ? 1 : 2
+        const text = trimmedLine
+        const id = createHeadingId(text, headingCounter)
+
+        console.log(`  ${headingCounter}. H${level} (Setext): "${text}" → ID: "${id}" ${level <= 2 ? '✓ 加入目录' : ''}`)
+
+        headingTexts.push(text)
+        if (level <= 2) {
+          tocItems.push({ id, text, level })
+        }
+        headingCounter++
+        i += 1
+      }
+    }
+  }
+
+  console.log(`✅ 提取完成，共 ${headingCounter} 个标题，目录包含 ${tocItems.length} 项`)
+
+  return { tocItems, headingTexts }
 }
 
 export const Editor = () => {
@@ -31,61 +108,58 @@ export const Editor = () => {
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
-  // Extract table of contents from markdown (only h1 and h2 for simplicity)
-  const extractToc = (markdown: string): TocItem[] => {
-    const lines = markdown.split('\n')
-    const tocItems: TocItem[] = []
-    let headingCounter = 0
-    let inCodeBlock = false
-    
-    lines.forEach((line) => {
-      // Check if entering or leaving code block
-      if (line.trim().startsWith('```')) {
-        inCodeBlock = !inCodeBlock
-        return
-      }
-      
-      // Skip lines inside code blocks
-      if (inCodeBlock) {
-        return
-      }
-      
-      const match = line.match(/^(#{1,6})\s+(.+)$/)
-      if (match) {
-        const level = match[1].length
-        const text = match[2].trim()
-        const id = `toc-heading-${headingCounter}`
-        
-        // Only include h1 and h2 in TOC
-        if (level <= 2) {
-          tocItems.push({ id, text, level })
-        }
-        headingCounter++
-      }
-    })
-    
-    return tocItems
-  }
-
-  const toc = extractToc(content)
+  const { tocItems: toc, headingTexts } = useMemo(() => extractHeadingData(content), [content])
 
   const scrollToHeading = (id: string) => {
-    const element = document.getElementById(id)
-    const container = contentRef.current
+    console.log('🔍 正在跳转到标题，ID:', id)
     
-    if (element && container) {
-      // Calculate the position relative to the container
-      const elementRect = element.getBoundingClientRect()
+    // 等待 DOM 完全渲染
+    setTimeout(() => {
+      const element = document.getElementById(id)
+      if (!element) {
+        console.error('❌ 未找到元素，ID:', id)
+        console.log('📋 页面中所有标题元素:')
+        document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+          console.log(`  - ${h.tagName} [id="${h.id}"] ${h.textContent}`)
+        })
+        return
+      }
+
+      console.log('✅ 找到元素:', element.tagName, element.textContent)
+
+      const container = contentRef.current
+      if (!container) {
+        console.log('⚠️ 使用默认滚动方式 (无容器引用)')
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        })
+        return
+      }
+
+      // 手动计算精确的滚动位置
       const containerRect = container.getBoundingClientRect()
-      const scrollTop = container.scrollTop
-      const offset = elementRect.top - containerRect.top + scrollTop
+      const elementRect = element.getBoundingClientRect()
       
-      // Scroll the container to the element with smooth behavior
+      // 计算元素相对于容器的位置
+      const relativeTop = elementRect.top - containerRect.top
+      const targetScrollTop = container.scrollTop + relativeTop - 80 // 80px 顶部偏移量
+      
+      console.log('📊 滚动信息:', {
+        容器当前滚动位置: container.scrollTop,
+        元素相对位置: relativeTop,
+        目标滚动位置: targetScrollTop
+      })
+      
+      // 平滑滚动到目标位置
       container.scrollTo({
-        top: offset - 80, // 80px offset from top for better visibility
+        top: Math.max(0, targetScrollTop),
         behavior: 'smooth'
       })
-    }
+      
+      console.log('✨ 滚动完成')
+    }, 100) // 延迟 100ms 确保 DOM 已渲染
   }
 
   useEffect(() => {
@@ -507,11 +581,22 @@ export const Editor = () => {
           <div className="flex-1 overflow-y-auto" ref={contentRef}>
             <div className="max-w-4xl mx-auto px-8 py-8 prose prose-lg dark:prose-invert">
               {(() => {
-                let headingCounter = 0
-                const createHeading = (Tag: any) => {
-                  return ({node, ...props}: any) => {
-                    const id = `toc-heading-${headingCounter++}`
-                    return <Tag id={id} {...props} />
+                let headingIndex = -1
+                const createHeading = (Tag: keyof JSX.IntrinsicElements) => {
+                  return (headingProps: any) => {
+                    headingIndex += 1
+                    // 直接从 props 中提取文本内容
+                    const textContent = typeof headingProps.children === 'string' 
+                      ? headingProps.children 
+                      : (Array.isArray(headingProps.children) 
+                          ? headingProps.children.join('') 
+                          : String(headingProps.children || ''))
+                    
+                    const id = createHeadingId(textContent, headingIndex)
+                    
+                    console.log(`🏷️ [全屏] 渲染标题 ${Tag.toUpperCase()}: "${textContent}" → ID: "${id}"`)
+
+                    return <Tag id={id} {...headingProps} />
                   }
                 }
                 
@@ -867,13 +952,28 @@ export const Editor = () => {
             </button>
           </div>
           {(showPreview || splitMode) && (
-            <button
-              onClick={() => setFullscreenPreview(true)}
-              className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
-              title="全屏预览"
-            >
-              <Maximize size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              {showPreview && toc.length > 0 && (
+                <button
+                  onClick={() => setShowToc(!showToc)}
+                  className={`p-1.5 rounded transition ${
+                    showToc 
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title={showToc ? '隐藏目录' : '显示目录'}
+                >
+                  <List size={16} />
+                </button>
+              )}
+              <button
+                onClick={() => setFullscreenPreview(true)}
+                className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                title="全屏预览"
+              >
+                <Maximize size={16} />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -881,7 +981,7 @@ export const Editor = () => {
       {/* Content */}
       <div className="flex-1 overflow-hidden flex">
         {splitMode ? (
-          /* Split Mode: Editor + Preview */
+          /* Split Mode: Editor + Preview (No TOC) */
           <>
             <div className="flex-1 overflow-y-auto border-r border-gray-200 dark:border-gray-700">
               <textarea
@@ -915,22 +1015,76 @@ export const Editor = () => {
           </>
         ) : showPreview ? (
           /* Preview Only */
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  img: ({node, ...props}) => (
-                    <img 
-                      {...props} 
-                      className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
-                      style={{ display: 'block', margin: '1rem 0' }}
-                    />
+          <div className="flex-1 flex overflow-hidden">
+            {/* TOC for Preview Mode */}
+            {showToc && toc.length > 0 && (
+              <div className="w-48 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
+                <div className="p-3">
+                  <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">目录</h4>
+                  <nav className="space-y-0.5">
+                    {toc.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => scrollToHeading(item.id)}
+                        className={`block w-full text-left text-xs hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1.5 transition ${
+                          item.level === 1 
+                            ? 'font-semibold text-gray-800 dark:text-gray-200' 
+                            : 'text-gray-600 dark:text-gray-400 pl-4'
+                        }`}
+                      >
+                        {item.text}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto" ref={contentRef}>
+              <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none">
+                {(() => {
+                  let headingIndex = -1
+                  const createHeading = (Tag: keyof JSX.IntrinsicElements) => {
+                    return (headingProps: any) => {
+                      headingIndex += 1
+                      // 直接从 props 中提取文本内容
+                      const textContent = typeof headingProps.children === 'string' 
+                        ? headingProps.children 
+                        : (Array.isArray(headingProps.children) 
+                            ? headingProps.children.join('') 
+                            : String(headingProps.children || ''))
+                      
+                      const id = createHeadingId(textContent, headingIndex)
+                      
+                      console.log(`🏷️ 渲染标题 ${Tag.toUpperCase()}: "${textContent}" → ID: "${id}"`)
+
+                      return <Tag id={id} {...headingProps} />
+                    }
+                  }
+                  
+                  return (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: createHeading('h1'),
+                        h2: createHeading('h2'),
+                        h3: createHeading('h3'),
+                        h4: createHeading('h4'),
+                        h5: createHeading('h5'),
+                        h6: createHeading('h6'),
+                        img: ({node, ...props}) => (
+                          <img 
+                            {...props} 
+                            className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                            style={{ display: 'block', margin: '1rem 0' }}
+                          />
+                        )
+                      }}
+                    >
+                      {content || '*暂无内容*'}
+                    </ReactMarkdown>
                   )
-                }}
-              >
-                {content || '*暂无内容*'}
-              </ReactMarkdown>
+                })()}
+              </div>
             </div>
           </div>
         ) : (
