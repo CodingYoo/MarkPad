@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
 import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown } from 'lucide-react'
 import { ContextMenu } from './ContextMenu'
+import { ExportProgress } from './ExportProgress'
 import { getTagColor } from '../utils'
 
 export const Editor = () => {
@@ -18,6 +19,7 @@ export const Editor = () => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [showTagMenu, setShowTagMenu] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showExportProgress, setShowExportProgress] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
 
@@ -171,211 +173,47 @@ export const Editor = () => {
       return
     }
 
+    setShowExportMenu(false)
+    setShowExportProgress(true)
+
     try {
-      // 导入必要的库
-      const { jsPDF } = await import('jspdf')
-      const html2canvas = (await import('html2canvas')).default
-      const React = await import('react')
-      const ReactDOM = await import('react-dom/client')
+      // 尝试使用 Tauri 导出API
+      const { invoke } = await import('@tauri-apps/api/core')
+      const { save } = await import('@tauri-apps/plugin-dialog')
       
-      console.log('>>> Generating PDF with rendered Markdown...')
+      console.log('>>> Using Tauri backend for PDF export...')
       
-      // 创建一个临时的 div 来渲染 Markdown 内容
-      const tempDiv = document.createElement('div')
-      tempDiv.style.cssText = `
-        position: absolute;
-        left: -9999px;
-        top: 0;
-        width: 794px;
-        padding: 40px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-        line-height: 1.6;
-        color: #333;
-        background: white;
-        box-sizing: border-box;
-      `
-      
-      document.body.appendChild(tempDiv)
-      
-      // 使用 React 渲染 Markdown 内容
-      const root = ReactDOM.createRoot(tempDiv)
-      await new Promise<void>((resolve) => {
-        root.render(
-          React.createElement('div', null, [
-            React.createElement('h1', { 
-              key: 'title',
-              style: { 
-                fontSize: '28px', 
-                borderBottom: '2px solid #eee', 
-                paddingBottom: '10px', 
-                marginTop: 0,
-                marginBottom: '20px', 
-                fontWeight: 600 
-              } 
-            }, title || '未命名'),
-            React.createElement('div', { 
-              key: 'content',
-              className: 'prose prose-sm',
-              style: {
-                maxWidth: 'none',
-                fontSize: '14px',
-                lineHeight: 1.6
-              }
-            }, React.createElement(ReactMarkdown, {
-              remarkPlugins: [remarkGfm],
-              components: {
-                img: ({node, ...props}: any) => (
-                  React.createElement('img', {
-                    ...props,
-                    style: { 
-                      maxWidth: '100%', 
-                      height: 'auto', 
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      display: 'block',
-                      margin: '1rem 0'
-                    }
-                  })
-                ),
-                h1: ({node, ...props}: any) => React.createElement('h1', { ...props, style: { fontSize: '24px', fontWeight: 600, marginTop: '24px', marginBottom: '16px' } }),
-                h2: ({node, ...props}: any) => React.createElement('h2', { ...props, style: { fontSize: '20px', fontWeight: 600, marginTop: '20px', marginBottom: '12px' } }),
-                h3: ({node, ...props}: any) => React.createElement('h3', { ...props, style: { fontSize: '18px', fontWeight: 600, marginTop: '16px', marginBottom: '8px' } }),
-                p: ({node, ...props}: any) => React.createElement('p', { ...props, style: { marginBottom: '12px' } }),
-                code: ({node, inline, ...props}: any) => React.createElement('code', { 
-                  ...props, 
-                  style: inline ? { 
-                    backgroundColor: '#f3f4f6', 
-                    padding: '2px 6px', 
-                    borderRadius: '4px',
-                    fontSize: '13px',
-                    fontFamily: 'monospace'
-                  } : {
-                    display: 'block',
-                    backgroundColor: '#f3f4f6',
-                    padding: '12px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    fontFamily: 'monospace',
-                    overflowX: 'auto'
-                  }
-                }),
-                ul: ({node, ...props}: any) => React.createElement('ul', { ...props, style: { marginBottom: '12px', paddingLeft: '24px' } }),
-                ol: ({node, ...props}: any) => React.createElement('ol', { ...props, style: { marginBottom: '12px', paddingLeft: '24px' } }),
-                table: ({node, ...props}: any) => React.createElement('table', { ...props, style: { borderCollapse: 'collapse', width: '100%', marginBottom: '16px', border: '1px solid #e5e7eb' } }),
-                th: ({node, ...props}: any) => React.createElement('th', { ...props, style: { border: '1px solid #e5e7eb', padding: '8px', backgroundColor: '#f9fafb', fontWeight: 600, textAlign: 'left' } }),
-                td: ({node, ...props}: any) => React.createElement('td', { ...props, style: { border: '1px solid #e5e7eb', padding: '8px' } })
-              }
-            }, content || '*暂无内容*'))
-          ])
-        )
-        // 等待渲染完成
-        setTimeout(resolve, 300)
+      // 打开保存对话框
+      const filePath = await save({
+        defaultPath: `${title || '未命名'}.pdf`,
+        filters: [{ 
+          name: 'PDF', 
+          extensions: ['pdf'] 
+        }]
       })
       
-      console.log('Rendering content to canvas...')
-      
-      // 使用 html2canvas 将内容转换为图片
-      const canvas = await html2canvas(tempDiv, {
-        scale: 2, // 提高清晰度
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      })
-      
-      // 清理临时元素
-      root.unmount()
-      document.body.removeChild(tempDiv)
-      
-      console.log('Canvas generated, converting to PDF...')
-      
-      // 创建 PDF
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      })
-      
-      // A4 纸张尺寸（mm）
-      const pageWidth = 210
-      const pageHeight = 297
-      const imgWidth = pageWidth
-      const imgHeight = (canvas.height * pageWidth) / canvas.width
-      
-      let heightLeft = imgHeight
-      let position = 0
-      
-      // 添加第一页
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
-      
-      // 如果内容超过一页，添加更多页面
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight
+      if (!filePath) {
+        console.log('User cancelled save dialog')
+        setShowExportProgress(false)
+        return
       }
       
-      // 生成 PDF Blob
-      const pdfBlob = pdf.output('blob')
+      console.log('Selected file path:', filePath)
       
-      console.log('PDF generated, size:', pdfBlob.size)
+      // 调用后端导出命令
+      await invoke('export_pdf', {
+        title: title || '未命名',
+        content: content || '',
+        outputPath: filePath
+      })
       
-      // 尝试使用 Tauri 保存对话框
-      try {
-        const dialogModule = await import('@tauri-apps/plugin-dialog')
-        const fsModule = await import('@tauri-apps/plugin-fs')
-        
-        console.log('>>> Using Tauri save dialog for PDF...')
-        
-        const filePath = await dialogModule.save({
-          defaultPath: `${title || '未命名'}.pdf`,
-          filters: [{ 
-            name: 'PDF', 
-            extensions: ['pdf'] 
-          }]
-        })
-        
-        if (filePath) {
-          // 将 Blob 转换为 ArrayBuffer
-          const arrayBuffer = await pdfBlob.arrayBuffer()
-          const uint8Array = new Uint8Array(arrayBuffer)
-          
-          // 写入文件
-          await fsModule.writeFile(filePath, uint8Array)
-          console.log('PDF saved to:', filePath)
-          alert('PDF 保存成功！')
-        } else {
-          console.log('User cancelled save dialog')
-        }
-      } catch (tauriError) {
-        // 浏览器环境：直接下载
-        console.log('>>> Tauri not available, using browser download...')
-        console.log('Tauri error:', tauriError)
-        
-        const url = URL.createObjectURL(pdfBlob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${title || '未命名'}.pdf`
-        a.style.display = 'none'
-        
-        document.body.appendChild(a)
-        a.click()
-        
-        setTimeout(() => {
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
-          console.log('PDF download triggered')
-        }, 100)
-      }
+      console.log('PDF export completed successfully')
       
     } catch (error) {
       console.error('Export PDF failed:', error)
+      setShowExportProgress(false)
       alert('导出 PDF 失败：' + (error instanceof Error ? error.message : String(error)))
     }
-    
-    setShowExportMenu(false)
   }
 
   const insertMarkdown = (action: string, value?: string) => {
@@ -1013,6 +851,12 @@ export const Editor = () => {
           onSelect={insertMarkdown}
         />
       )}
+
+      {/* Export Progress */}
+      <ExportProgress
+        isOpen={showExportProgress}
+        onClose={() => setShowExportProgress(false)}
+      />
     </div>
   )
 }
