@@ -11,10 +11,6 @@ interface TocItem {
   id: string
   text: string
   level: number
-}
-
-interface TocSection {
-  item: TocItem
   children: TocItem[]
 }
 
@@ -32,37 +28,36 @@ const createHeadingId = (text: string, index: number) => {
   return slug || `heading-${index}`
 }
 
-// 组织目录为层级结构
-const organizeTocSections = (tocItems: TocItem[]): TocSection[] => {
-  const sections: TocSection[] = []
-  let currentH1: TocSection | null = null
+// 组织目录为层级结构（支持 H1-H3）
+const organizeTocSections = (flatItems: { id: string; text: string; level: number }[]): TocItem[] => {
+  const root: TocItem[] = []
+  const stack: TocItem[] = []
 
-  for (const item of tocItems) {
-    if (item.level === 1) {
-      // 创建新的一级章节
-      currentH1 = { item, children: [] }
-      sections.push(currentH1)
-    } else if (item.level === 2) {
-      // 添加到当前一级章节的子项
-      if (currentH1) {
-        currentH1.children.push(item)
-      } else {
-        // 如果没有一级标题，创建一个虚拟的
-        currentH1 = { 
-          item: { id: '', text: '', level: 1 }, 
-          children: [item] 
-        }
-        sections.push(currentH1)
-      }
+  for (const item of flatItems) {
+    const tocItem: TocItem = { ...item, children: [] }
+
+    // 找到合适的父节点
+    while (stack.length > 0 && stack[stack.length - 1].level >= tocItem.level) {
+      stack.pop()
     }
+
+    if (stack.length === 0) {
+      // 顶层项
+      root.push(tocItem)
+    } else {
+      // 添加为父节点的子项
+      stack[stack.length - 1].children.push(tocItem)
+    }
+
+    stack.push(tocItem)
   }
 
-  return sections
+  return root
 }
 
-const extractHeadingData = (markdown: string): { tocItems: TocItem[]; headingTexts: string[] } => {
+const extractHeadingData = (markdown: string): { tocItems: { id: string; text: string; level: number }[]; headingTexts: string[] } => {
   const lines = markdown.split('\n')
-  const tocItems: TocItem[] = []
+  const tocItems: { id: string; text: string; level: number }[] = []
   const headingTexts: string[] = []
   let inCodeBlock = false
   let headingCounter = 0
@@ -88,10 +83,10 @@ const extractHeadingData = (markdown: string): { tocItems: TocItem[]; headingTex
       const text = hashMatch[2].trim()
       const id = createHeadingId(text, headingCounter)
 
-      console.log(`  ${headingCounter}. H${level}: "${text}" → ID: "${id}" ${level <= 2 ? '✓ 加入目录' : ''}`)
+      console.log(`  ${headingCounter}. H${level}: "${text}" → ID: "${id}" ${level <= 3 ? '✓ 加入目录' : ''}`)
 
       headingTexts.push(text)
-      if (level <= 2) {
+      if (level <= 3) {
         tocItems.push({ id, text, level })
       }
       headingCounter++
@@ -106,10 +101,10 @@ const extractHeadingData = (markdown: string): { tocItems: TocItem[]; headingTex
         const text = trimmedLine
         const id = createHeadingId(text, headingCounter)
 
-        console.log(`  ${headingCounter}. H${level} (Setext): "${text}" → ID: "${id}" ${level <= 2 ? '✓ 加入目录' : ''}`)
+        console.log(`  ${headingCounter}. H${level} (Setext): "${text}" → ID: "${id}" ${level <= 3 ? '✓ 加入目录' : ''}`)
 
         headingTexts.push(text)
-        if (level <= 2) {
+        if (level <= 3) {
           tocItems.push({ id, text, level })
         }
         headingCounter++
@@ -142,8 +137,8 @@ export const Editor = () => {
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const { tocItems: toc, headingTexts } = useMemo(() => extractHeadingData(content), [content])
-  const tocSections = useMemo(() => organizeTocSections(toc), [toc])
+  const { tocItems: flatToc, headingTexts } = useMemo(() => extractHeadingData(content), [content])
+  const tocTree = useMemo(() => organizeTocSections(flatToc), [flatToc])
   
   const toggleSection = (sectionId: string) => {
     setCollapsedSections(prev => {
@@ -157,60 +152,84 @@ export const Editor = () => {
     })
   }
 
+  // 递归渲染层级目录
+  const renderTocItem = (item: TocItem, depth: number = 0): JSX.Element => {
+    const isCollapsed = collapsedSections.has(item.id)
+    const hasChildren = item.children.length > 0
+
+    // 根据层级设置样式
+    const getItemStyles = () => {
+      switch (item.level) {
+        case 1:
+          return {
+            textClass: 'text-sm font-bold text-gray-900 dark:text-gray-100',
+            paddingClass: 'py-1.5',
+            indentClass: ''
+          }
+        case 2:
+          return {
+            textClass: 'text-sm font-semibold text-gray-800 dark:text-gray-200',
+            paddingClass: 'py-1.5',
+            indentClass: 'ml-3'
+          }
+        case 3:
+          return {
+            textClass: 'text-xs text-gray-700 dark:text-gray-300',
+            paddingClass: 'py-1',
+            indentClass: 'ml-6'
+          }
+        default:
+          return {
+            textClass: 'text-xs text-gray-600 dark:text-gray-400',
+            paddingClass: 'py-1',
+            indentClass: `ml-${3 + (item.level - 1) * 3}`
+          }
+      }
+    }
+
+    const styles = getItemStyles()
+
+    return (
+      <div key={item.id} className={`mb-0.5 ${styles.indentClass}`}>
+        <div className="flex items-center gap-1">
+          {hasChildren && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleSection(item.id)
+              }}
+              className="flex-shrink-0 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition"
+              aria-label={isCollapsed ? '展开' : '折叠'}
+            >
+              {isCollapsed ? (
+                <ChevronRight size={14} className="text-gray-500 dark:text-gray-400" />
+              ) : (
+                <ChevronDown size={14} className="text-gray-500 dark:text-gray-400" />
+              )}
+            </button>
+          )}
+          <button
+            onClick={() => scrollToHeading(item.id)}
+            className={`flex-1 text-left ${styles.textClass} hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 ${styles.paddingClass} transition`}
+          >
+            {item.text}
+          </button>
+        </div>
+        
+        {/* 递归渲染子项 */}
+        {!isCollapsed && hasChildren && (
+          <div className="mt-0.5 space-y-0.5">
+            {item.children.map((child) => renderTocItem(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // 渲染层级目录
   const renderTocSections = () => {
-    if (tocSections.length === 0) return null
-
-    return tocSections.map((section, index) => {
-      const hasH1 = section.item.id !== ''
-      const isCollapsed = collapsedSections.has(section.item.id)
-      const hasChildren = section.children.length > 0
-
-      return (
-        <div key={section.item.id || `section-${index}`} className="mb-1">
-          {hasH1 && (
-            <div className="flex items-center gap-1">
-              {hasChildren && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleSection(section.item.id)
-                  }}
-                  className="flex-shrink-0 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition"
-                >
-                  {isCollapsed ? (
-                    <ChevronRight size={14} className="text-gray-500 dark:text-gray-400" />
-                  ) : (
-                    <ChevronDown size={14} className="text-gray-500 dark:text-gray-400" />
-                  )}
-                </button>
-              )}
-              <button
-                onClick={() => scrollToHeading(section.item.id)}
-                className="flex-1 text-left text-sm font-semibold text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1.5 transition"
-              >
-                {section.item.text}
-              </button>
-            </div>
-          )}
-          
-          {/* 二级标题 */}
-          {!isCollapsed && hasChildren && (
-            <div className="ml-5 mt-0.5 space-y-0.5">
-              {section.children.map((child) => (
-                <button
-                  key={child.id}
-                  onClick={() => scrollToHeading(child.id)}
-                  className="block w-full text-left text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1.5 transition"
-                >
-                  {child.text}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )
-    })
+    if (tocTree.length === 0) return null
+    return <>{tocTree.map((item) => renderTocItem(item))}</>
   }
 
   const scrollToHeading = (id: string) => {
@@ -635,7 +654,7 @@ export const Editor = () => {
       <div className="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex flex-col">
         {/* Fullscreen Header */}
         <div className="flex items-center justify-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 relative">
-          {tocSections.length > 0 && (
+          {tocTree.length > 0 && (
             <button
               onClick={() => setShowToc(!showToc)}
               className={`absolute left-6 p-2 rounded-lg transition ${
@@ -663,7 +682,7 @@ export const Editor = () => {
         {/* Fullscreen Content with TOC */}
         <div className="flex-1 flex overflow-hidden">
           {/* Table of Contents */}
-          {showToc && tocSections.length > 0 && (
+          {showToc && tocTree.length > 0 && (
             <div className="w-64 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
               <div className="p-4">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">目录</h4>
@@ -1050,7 +1069,7 @@ export const Editor = () => {
           </div>
           {(showPreview || splitMode) && (
             <div className="flex items-center gap-2">
-              {showPreview && tocSections.length > 0 && (
+              {showPreview && tocTree.length > 0 && (
                 <button
                   onClick={() => setShowToc(!showToc)}
                   className={`p-1.5 rounded transition ${
@@ -1114,7 +1133,7 @@ export const Editor = () => {
           /* Preview Only */
           <div className="flex-1 flex overflow-hidden">
             {/* TOC for Preview Mode */}
-            {showToc && tocSections.length > 0 && (
+            {showToc && tocTree.length > 0 && (
               <div className="w-56 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
                 <div className="p-3">
                   <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">目录</h4>
