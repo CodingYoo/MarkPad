@@ -2,10 +2,16 @@ import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStore } from '../store'
-import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown } from 'lucide-react'
+import { Pin, Trash2, Save, MoreVertical, Maximize, X, Plus, FileDown, List } from 'lucide-react'
 import { ContextMenu } from './ContextMenu'
 import { ExportProgress } from './ExportProgress'
 import { getTagColor } from '../utils'
+
+interface TocItem {
+  id: string
+  text: string
+  level: number
+}
 
 export const Editor = () => {
   const { notes, currentNoteId, updateNote, deleteNote, togglePinNote, projects, types, tags } = useStore()
@@ -20,8 +26,67 @@ export const Editor = () => {
   const [showTagMenu, setShowTagMenu] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showExportProgress, setShowExportProgress] = useState(false)
+  const [showToc, setShowToc] = useState(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // Extract table of contents from markdown (only h1 and h2 for simplicity)
+  const extractToc = (markdown: string): TocItem[] => {
+    const lines = markdown.split('\n')
+    const tocItems: TocItem[] = []
+    let headingCounter = 0
+    let inCodeBlock = false
+    
+    lines.forEach((line) => {
+      // Check if entering or leaving code block
+      if (line.trim().startsWith('```')) {
+        inCodeBlock = !inCodeBlock
+        return
+      }
+      
+      // Skip lines inside code blocks
+      if (inCodeBlock) {
+        return
+      }
+      
+      const match = line.match(/^(#{1,6})\s+(.+)$/)
+      if (match) {
+        const level = match[1].length
+        const text = match[2].trim()
+        const id = `toc-heading-${headingCounter}`
+        
+        // Only include h1 and h2 in TOC
+        if (level <= 2) {
+          tocItems.push({ id, text, level })
+        }
+        headingCounter++
+      }
+    })
+    
+    return tocItems
+  }
+
+  const toc = extractToc(content)
+
+  const scrollToHeading = (id: string) => {
+    const element = document.getElementById(id)
+    const container = contentRef.current
+    
+    if (element && container) {
+      // Calculate the position relative to the container
+      const elementRect = element.getBoundingClientRect()
+      const containerRect = container.getBoundingClientRect()
+      const scrollTop = container.scrollTop
+      const offset = elementRect.top - containerRect.top + scrollTop
+      
+      // Scroll the container to the element with smooth behavior
+      container.scrollTo({
+        top: offset - 80, // 80px offset from top for better visibility
+        behavior: 'smooth'
+      })
+    }
+  }
 
   useEffect(() => {
     if (currentNote) {
@@ -392,36 +457,88 @@ export const Editor = () => {
     return (
       <div className="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex flex-col">
         {/* Fullscreen Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="flex items-center justify-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 relative">
+          <button
+            onClick={() => setShowToc(!showToc)}
+            className="absolute left-6 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+            title={showToc ? '隐藏目录' : '显示目录'}
+          >
+            <List size={24} className="text-gray-600 dark:text-gray-400" />
+          </button>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white text-center">
             {title || '无标题'}
           </h3>
           <button
             onClick={() => setFullscreenPreview(false)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+            className="absolute right-6 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
             title="退出全屏 (ESC)"
           >
             <X size={24} className="text-gray-600 dark:text-gray-400" />
           </button>
         </div>
 
-        {/* Fullscreen Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-8 py-8 prose prose-lg dark:prose-invert">
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm]}
-              components={{
-                img: ({node, ...props}) => (
-                  <img 
-                    {...props} 
-                    className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
-                    style={{ display: 'block', margin: '1rem 0' }}
-                  />
+        {/* Fullscreen Content with TOC */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Table of Contents */}
+          {showToc && toc.length > 0 && (
+            <div className="w-64 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
+              <div className="p-4">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">目录</h4>
+                <nav className="space-y-0.5">
+                  {toc.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => scrollToHeading(item.id)}
+                      className={`block w-full text-left text-sm hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-3 py-2 transition ${
+                        item.level === 1 
+                          ? 'font-semibold text-gray-800 dark:text-gray-200' 
+                          : 'text-gray-600 dark:text-gray-400 pl-6'
+                      }`}
+                    >
+                      {item.text}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto" ref={contentRef}>
+            <div className="max-w-4xl mx-auto px-8 py-8 prose prose-lg dark:prose-invert">
+              {(() => {
+                let headingCounter = 0
+                const createHeading = (Tag: any) => {
+                  return ({node, ...props}: any) => {
+                    const id = `toc-heading-${headingCounter++}`
+                    return <Tag id={id} {...props} />
+                  }
+                }
+                
+                return (
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: createHeading('h1'),
+                      h2: createHeading('h2'),
+                      h3: createHeading('h3'),
+                      h4: createHeading('h4'),
+                      h5: createHeading('h5'),
+                      h6: createHeading('h6'),
+                      img: ({node, ...props}) => (
+                        <img 
+                          {...props} 
+                          className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                          style={{ display: 'block', margin: '1rem 0' }}
+                        />
+                      )
+                    }}
+                  >
+                    {content || '*暂无内容*'}
+                  </ReactMarkdown>
                 )
-              }}
-            >
-              {content || '*暂无内容*'}
-            </ReactMarkdown>
+              })()}
+            </div>
           </div>
         </div>
       </div>
@@ -477,18 +594,18 @@ export const Editor = () => {
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-gray-800">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-start sm:items-center justify-between px-3 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 gap-2 sm:gap-4 flex-col sm:flex-row">
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           {project && (
             <span
-              className="px-2 py-1 text-xs rounded"
+              className="px-2 py-1 text-xs rounded whitespace-nowrap flex-shrink-0"
               style={{ backgroundColor: project.color + '20', color: project.color }}
             >
               {project.name}
             </span>
           )}
           {type && (
-            <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+            <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded whitespace-nowrap flex-shrink-0">
               {type.name}
             </span>
           )}
@@ -497,7 +614,7 @@ export const Editor = () => {
             return (
               <span
                 key={tag.id}
-                className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1 ${tagColor.bg} ${tagColor.text} ${tagColor.border}`}
+                className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${tagColor.bg} ${tagColor.text} ${tagColor.border}`}
               >
                 #{tag.name}
                 <button
@@ -506,7 +623,7 @@ export const Editor = () => {
                     e.stopPropagation()
                     toggleTag(tag.id)
                   }}
-                  className="hover:bg-black/10 dark:hover:bg-white/10 rounded-full p-0.5 transition"
+                  className="hover:bg-black/10 dark:hover:bg-white/10 rounded-full p-0.5 transition flex-shrink-0"
                   type="button"
                 >
                   <X size={12} />
@@ -514,20 +631,21 @@ export const Editor = () => {
               </span>
             )
           })}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation()
                 setShowTagMenu(!showTagMenu)
               }}
-              className="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center gap-1"
+              className="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center gap-1 whitespace-nowrap"
             >
-              <Plus size={12} />
-              添加标签
+              <Plus size={12} className="flex-shrink-0" />
+              <span className="hidden sm:inline">添加标签</span>
+              <span className="sm:hidden">标签</span>
             </button>
             {showTagMenu && (
               <div 
-                className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-2 min-w-[200px] max-h-[400px] overflow-y-auto z-50"
+                className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-2 min-w-[200px] w-[calc(100vw-2rem)] sm:w-auto max-w-sm max-h-[400px] overflow-y-auto z-50"
                 onClick={(e) => e.stopPropagation()}
               >
                 {tags.length === 0 ? (
@@ -626,17 +744,17 @@ export const Editor = () => {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <button
             onClick={() => togglePinNote(currentNote.id)}
-            className={`p-2 rounded-lg transition ${
+            className={`p-1.5 sm:p-2 rounded-lg transition ${
               currentNote.isPinned
                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
             title="置顶"
           >
-            <Pin size={18} />
+            <Pin size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
           <button
             onClick={() => {
@@ -644,10 +762,10 @@ export const Editor = () => {
                 deleteNote(currentNote.id)
               }
             }}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+            className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
             title="删除"
           >
-            <Trash2 size={18} />
+            <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
           <div className="relative" ref={exportMenuRef}>
             <button
@@ -655,14 +773,14 @@ export const Editor = () => {
                 e.stopPropagation()
                 setShowExportMenu(!showExportMenu)
               }}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
               title="更多选项"
             >
-              <MoreVertical size={18} />
+              <MoreVertical size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
             {showExportMenu && (
               <div 
-                className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50"
+                className="absolute right-0 mt-2 w-36 sm:w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
