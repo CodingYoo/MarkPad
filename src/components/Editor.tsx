@@ -156,6 +156,7 @@ export const Editor = () => {
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const codeThemeMenuRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
 
   const { tocItems: flatToc } = useMemo(() => extractHeadingData(content), [content])
   const tocTree = useMemo(() => organizeTocSections(flatToc), [flatToc])
@@ -341,6 +342,65 @@ export const Editor = () => {
       setContent(currentNote.content)
     }
   }, [currentNote])
+
+  // 分屏模式下的滚动同步
+  useEffect(() => {
+    if (!splitMode) return
+
+    const editorTextarea = textareaRef.current
+    const previewContainer = previewRef.current
+
+    if (!editorTextarea || !previewContainer) return
+
+    let isEditorScrolling = false
+    let isPreviewScrolling = false
+
+    const handleEditorScroll = () => {
+      if (isPreviewScrolling) return
+      
+      isEditorScrolling = true
+      
+      const editorScrollTop = editorTextarea.scrollTop
+      const editorScrollHeight = editorTextarea.scrollHeight - editorTextarea.clientHeight
+      const scrollRatio = editorScrollHeight > 0 ? editorScrollTop / editorScrollHeight : 0
+      
+      const previewScrollHeight = previewContainer.scrollHeight - previewContainer.clientHeight
+      const previewScrollTop = scrollRatio * previewScrollHeight
+      
+      previewContainer.scrollTop = previewScrollTop
+      
+      setTimeout(() => {
+        isEditorScrolling = false
+      }, 100)
+    }
+
+    const handlePreviewScroll = () => {
+      if (isEditorScrolling) return
+      
+      isPreviewScrolling = true
+      
+      const previewScrollTop = previewContainer.scrollTop
+      const previewScrollHeight = previewContainer.scrollHeight - previewContainer.clientHeight
+      const scrollRatio = previewScrollHeight > 0 ? previewScrollTop / previewScrollHeight : 0
+      
+      const editorScrollHeight = editorTextarea.scrollHeight - editorTextarea.clientHeight
+      const editorScrollTop = scrollRatio * editorScrollHeight
+      
+      editorTextarea.scrollTop = editorScrollTop
+      
+      setTimeout(() => {
+        isPreviewScrolling = false
+      }, 100)
+    }
+
+    editorTextarea.addEventListener('scroll', handleEditorScroll)
+    previewContainer.addEventListener('scroll', handlePreviewScroll)
+
+    return () => {
+      editorTextarea.removeEventListener('scroll', handleEditorScroll)
+      previewContainer.removeEventListener('scroll', handlePreviewScroll)
+    }
+  }, [splitMode])
 
   useEffect(() => {
     if (!currentNote) return
@@ -1222,7 +1282,7 @@ export const Editor = () => {
         {splitMode ? (
           /* Split Mode: Editor + Preview (No TOC) */
           <>
-            <div className="flex-1 overflow-y-auto border-r border-gray-200 dark:border-gray-700 min-w-0">
+            <div className="flex-1 overflow-hidden border-r border-gray-200 dark:border-gray-700 min-w-0">
               <textarea
                 ref={textareaRef}
                 value={content}
@@ -1233,7 +1293,7 @@ export const Editor = () => {
                 className="w-full h-full px-6 py-4 bg-transparent border-none outline-none resize-none text-gray-900 dark:text-white placeholder-gray-400 font-mono text-sm"
               />
             </div>
-            <div className="flex-1 overflow-y-auto min-w-0">
+            <div ref={previewRef} className="flex-1 overflow-y-auto min-w-0">
               <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
