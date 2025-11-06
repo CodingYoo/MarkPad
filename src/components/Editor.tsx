@@ -864,7 +864,7 @@ export const Editor = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 min-w-0">
+    <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 min-w-0 max-w-full">
       {/* Toolbar */}
       <div className="flex items-start sm:items-center justify-between px-3 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 gap-2 sm:gap-4 flex-col sm:flex-row">
         <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">

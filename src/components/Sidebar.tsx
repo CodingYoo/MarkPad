@@ -178,7 +178,7 @@ export const Sidebar = () => {
 
   return (
     <>
-      <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
+      <div className="w-48 lg:w-56 xl:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-[0.5] min-w-[180px]">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">MarkPad</h2>

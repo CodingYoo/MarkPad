@@ -18,7 +18,7 @@ function App() {
   }, [settings.theme])
 
   return (
-    <div className="h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden min-w-[800px]">
       <Sidebar />
       <NoteList />
       <Editor />

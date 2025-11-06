@@ -28,6 +28,33 @@ export const NoteList = () => {
   const [editingFolderName, setEditingFolderName] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; folderId: string } | null>(null)
   const [folderModalOpen, setFolderModalOpen] = useState(false)
+  const [isSmallScreen, setIsSmallScreen] = useState(false)
+
+  // 监听屏幕尺寸变化，自动折叠/展开
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1024px)')
+    
+    const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      setIsSmallScreen(e.matches)
+      if (e.matches) {
+        // 小屏幕 (≤1024px) 下自动折叠
+        setIsCollapsed(true)
+      } else {
+        // 大屏幕 (>1024px) 下自动展开
+        setIsCollapsed(false)
+      }
+    }
+    
+    // 初始检查
+    handleMediaChange(mediaQuery)
+    
+    // 监听变化
+    mediaQuery.addEventListener('change', handleMediaChange)
+    
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaChange)
+    }
+  }, [])
 
   const filteredNotes = useMemo(() => {
     let result = [...notes]
@@ -238,7 +265,7 @@ export const NoteList = () => {
   }, [filteredNotes, filter.projectId, filter.typeId, filter.tagIds])
 
   return (
-    <div className={`bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+    <div className={`bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 flex-shrink-[1] ${isCollapsed ? 'w-12 min-w-[48px] flex-shrink-0' : 'w-48 lg:w-56 xl:w-64 min-w-[180px]'}`}>
       {isCollapsed ? (
         /* Collapsed State */
         <div className="flex flex-col items-center h-full">

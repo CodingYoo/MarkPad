@@ -380,3 +380,36 @@ code {
 .prose tbody tr:last-child {
   border-bottom: none;
 }
+
+/* 响应式布局优化 */
+@media (max-width: 1280px) {
+  /* 在较小屏幕上优先保证右侧编辑器的可用性 */
+  .prose {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* 在中等屏幕上进一步压缩左侧和中间栏 */
+  .prose h1 {
+    font-size: 1.875em;
+  }
+  
+  .prose h2 {
+    font-size: 1.5em;
+  }
+}
+
+/* 确保在所有屏幕尺寸下，内容不会溢出 */
+.line-clamp-1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 文本省略样式 */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
