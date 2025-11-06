@@ -28,14 +28,12 @@ export const NoteList = () => {
   const [editingFolderName, setEditingFolderName] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; folderId: string } | null>(null)
   const [folderModalOpen, setFolderModalOpen] = useState(false)
-  const [isSmallScreen, setIsSmallScreen] = useState(false)
 
   // 监听屏幕尺寸变化，自动折叠/展开
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1024px)')
     
     const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      setIsSmallScreen(e.matches)
       if (e.matches) {
         // 小屏幕 (≤1024px) 下自动折叠
         setIsCollapsed(true)

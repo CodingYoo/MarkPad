@@ -11,6 +11,32 @@ import { ExportProgress } from './ExportProgress'
 import { getTagColor } from '../utils'
 import { CodeTheme } from '../types'
 
+// 自定义 remark 插件：在 Markdown AST 阶段添加行号标记
+const remarkAddLineNumbers = () => {
+  return (tree: any) => {
+    const visit = (node: any) => {
+      // 为所有有位置信息的节点添加行号
+      if (node.position && node.position.start) {
+        if (!node.data) {
+          node.data = {}
+        }
+        if (!node.data.hProperties) {
+          node.data.hProperties = {}
+        }
+        // 将 Markdown 源文本的行号存储到 hProperties 中
+        // 这样会被传递到最终的 HTML 元素上
+        node.data.hProperties['data-line'] = node.position.start.line
+      }
+      // 递归处理子节点
+      if (node.children) {
+        node.children.forEach(visit)
+      }
+    }
+    visit(tree)
+  }
+}
+
+
 interface TocItem {
   id: string
   text: string
@@ -343,7 +369,7 @@ export const Editor = () => {
     }
   }, [currentNote])
 
-  // 分屏模式下的滚动同步
+  // 分屏模式下的精确滚动同步（基于内容识别）
   useEffect(() => {
     if (!splitMode) return
 
@@ -352,55 +378,345 @@ export const Editor = () => {
 
     if (!editorTextarea || !previewContainer) return
 
-    let isEditorScrolling = false
-    let isPreviewScrolling = false
+    let isSyncing = false
+    let rafId: number | null = null
+    let isClickSyncing = false
 
-    const handleEditorScroll = () => {
-      if (isPreviewScrolling) return
+    // 获取编辑器当前可见区域的顶部和中心行号
+    const getEditorVisibleLines = () => {
+      const scrollTop = editorTextarea.scrollTop
+      const clientHeight = editorTextarea.clientHeight
       
-      isEditorScrolling = true
+      const style = window.getComputedStyle(editorTextarea)
+      const lineHeight = parseFloat(style.lineHeight) || 28
+      const paddingTop = parseFloat(style.paddingTop) || 16
       
-      const editorScrollTop = editorTextarea.scrollTop
-      const editorScrollHeight = editorTextarea.scrollHeight - editorTextarea.clientHeight
-      const scrollRatio = editorScrollHeight > 0 ? editorScrollTop / editorScrollHeight : 0
+      // 可见区域顶部行号
+      const topLine = Math.floor((scrollTop - paddingTop) / lineHeight) + 1
+      // 可见区域中心行号
+      const centerLine = Math.floor((scrollTop + clientHeight / 2 - paddingTop) / lineHeight) + 1
       
-      const previewScrollHeight = previewContainer.scrollHeight - previewContainer.clientHeight
-      const previewScrollTop = scrollRatio * previewScrollHeight
+      console.log('📏 [计算行号] scrollTop:', scrollTop.toFixed(2), 'lineHeight:', lineHeight, 'paddingTop:', paddingTop, '→ 顶部行号:', topLine)
       
-      previewContainer.scrollTop = previewScrollTop
-      
-      setTimeout(() => {
-        isEditorScrolling = false
-      }, 100)
+      return {
+        topLine: Math.max(1, topLine),
+        centerLine: Math.max(1, centerLine),
+        totalLines: content.split('\n').length
+      }
     }
 
-    const handlePreviewScroll = () => {
-      if (isEditorScrolling) return
+    // 在预览中查找最接近指定行号的元素（支持插值）
+    const findPreviewElementByLine = (targetLine: number): { element: HTMLElement; line: number; nextElement?: HTMLElement; nextLine?: number } | null => {
+      const proseContainer = previewContainer.querySelector('.prose')
+      if (!proseContainer) {
+        console.error('❌ [查找元素] 未找到 .prose 容器')
+        return null
+      }
+
+      const elements = Array.from(proseContainer.querySelectorAll('[data-line]')) as HTMLElement[]
+      console.log('🔍 [查找元素] 目标行号:', targetLine, '可用元素数量:', elements.length)
       
-      isPreviewScrolling = true
-      
-      const previewScrollTop = previewContainer.scrollTop
-      const previewScrollHeight = previewContainer.scrollHeight - previewContainer.clientHeight
-      const scrollRatio = previewScrollHeight > 0 ? previewScrollTop / previewScrollHeight : 0
-      
-      const editorScrollHeight = editorTextarea.scrollHeight - editorTextarea.clientHeight
-      const editorScrollTop = scrollRatio * editorScrollHeight
-      
-      editorTextarea.scrollTop = editorScrollTop
-      
-      setTimeout(() => {
-        isPreviewScrolling = false
-      }, 100)
+      if (elements.length === 0) {
+        console.warn('⚠️ [查找元素] 预览中没有带 data-line 属性的元素')
+        return null
+      }
+
+      // 打印前几个元素的行号，用于诊断
+      if (elements.length > 0) {
+        console.log('📋 [元素列表] 前5个元素行号:', elements.slice(0, 5).map(el => el.getAttribute('data-line')).join(', '))
+      }
+
+      // 找到行号最接近且不大于目标行号的元素，以及下一个元素（用于插值）
+      let bestElement: HTMLElement | null = null
+      let bestLine = 0
+      let bestIndex = -1
+
+      for (let i = 0; i < elements.length; i++) {
+        const element = elements[i]
+        const line = parseInt(element.getAttribute('data-line') || '0', 10)
+        if (line <= targetLine && line > bestLine) {
+          bestLine = line
+          bestElement = element
+          bestIndex = i
+        }
+      }
+
+      console.log('🎯 [查找结果] 最佳匹配行号:', bestLine, '元素:', bestElement?.tagName)
+
+      // 如果没找到，返回第一个元素
+      if (!bestElement) {
+        console.warn('⚠️ [查找元素] 未找到匹配元素，使用第一个元素')
+        const firstLine = parseInt(elements[0].getAttribute('data-line') || '1', 10)
+        return { element: elements[0], line: firstLine }
+      }
+
+      // 查找下一个元素（用于插值）
+      let nextElement: HTMLElement | undefined
+      let nextLine: number | undefined
+      if (bestIndex < elements.length - 1) {
+        nextElement = elements[bestIndex + 1]
+        nextLine = parseInt(nextElement.getAttribute('data-line') || '0', 10)
+        console.log('📍 [下一元素] 行号:', nextLine, '标签:', nextElement.tagName)
+      }
+
+      return { element: bestElement, line: bestLine, nextElement, nextLine }
     }
 
-    editorTextarea.addEventListener('scroll', handleEditorScroll)
-    previewContainer.addEventListener('scroll', handlePreviewScroll)
+    // 同步预览滚动（使用行号插值提高精度）
+    const syncPreviewScroll = () => {
+      if (isClickSyncing) return
+      
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+      }
+
+      rafId = requestAnimationFrame(() => {
+        if (isSyncing || isClickSyncing) return
+        isSyncing = true
+
+        try {
+          const { topLine, totalLines } = getEditorVisibleLines()
+          
+          console.log('🔄 [滚动同步] 编辑器顶部行号:', topLine, '总行数:', totalLines)
+          
+          // 查找目标行号对应的预览元素（包含插值信息）
+          const result = findPreviewElementByLine(topLine)
+          
+          if (result) {
+            const { element, line, nextElement, nextLine } = result
+            console.log('✅ [找到元素] 行号:', line, '标签:', element.tagName, '内容预览:', element.textContent?.substring(0, 50))
+            
+            const previewRect = previewContainer.getBoundingClientRect()
+            const elementRect = element.getBoundingClientRect()
+            
+            // 计算元素相对于预览容器的位置
+            let elementTop = elementRect.top - previewRect.top + previewContainer.scrollTop
+            
+            // 如果目标行号和找到的元素行号不一致，使用插值
+            if (line !== topLine && nextElement && nextLine) {
+              const nextRect = nextElement.getBoundingClientRect()
+              const nextTop = nextRect.top - previewRect.top + previewContainer.scrollTop
+              
+              // 计算行号差异和位置差异
+              const lineDiff = nextLine - line
+              const positionDiff = nextTop - elementTop
+              
+              // 线性插值：根据行号差异计算目标位置
+              const targetLineOffset = topLine - line
+              const interpolationRatio = lineDiff > 0 ? targetLineOffset / lineDiff : 0
+              const interpolatedOffset = positionDiff * interpolationRatio
+              
+              elementTop = elementTop + interpolatedOffset
+              
+              console.log('🔢 [插值计算] 当前元素行:', line, '→ 目标行:', topLine, '→ 下一元素行:', nextLine)
+              console.log('📏 [插值计算] 行差:', lineDiff, '位置差:', positionDiff.toFixed(2) + 'px', '插值偏移:', interpolatedOffset.toFixed(2) + 'px')
+            } else if (line !== topLine) {
+              // 没有下一个元素时，使用估算偏移（假设每行约28px）
+              const estimatedLineHeight = 28
+              const lineOffset = (topLine - line) * estimatedLineHeight
+              elementTop = elementTop + lineOffset
+              console.log('📐 [估算偏移] 行差:', (topLine - line), '估算偏移:', lineOffset.toFixed(2) + 'px')
+            }
+            
+            console.log('📐 [位置计算] 最终顶部位置:', elementTop.toFixed(2) + 'px')
+            
+            // 使用和点击相同的定位策略：元素顶部 - 偏移量
+            const offset = 80
+            const targetScrollTop = elementTop - offset
+            
+            // 使用缓动让滚动更丝滑
+            const currentScrollTop = previewContainer.scrollTop
+            const distance = targetScrollTop - currentScrollTop
+            
+            console.log('🎯 [滚动目标] 当前位置:', currentScrollTop.toFixed(2) + 'px', '→ 目标位置:', targetScrollTop.toFixed(2) + 'px', '距离:', distance.toFixed(2) + 'px')
+            
+            if (Math.abs(distance) < 3) {
+              // 距离很小时直接设置，避免微抖动
+              previewContainer.scrollTop = Math.max(0, targetScrollTop)
+              console.log('✨ [直接设置] 新位置:', previewContainer.scrollTop.toFixed(2) + 'px')
+            } else {
+              // 使用缓动，让滚动跟手
+              const easing = 0.3
+              const newScrollTop = Math.max(0, currentScrollTop + distance * easing)
+              previewContainer.scrollTop = newScrollTop
+              console.log('🌊 [缓动滚动] 新位置:', newScrollTop.toFixed(2) + 'px')
+            }
+          } else {
+            console.warn('⚠️ [未找到元素] 使用后备方案（比例同步）')
+            // 如果找不到对应元素，使用比例同步作为后备方案
+            const percentage = totalLines > 1 ? (topLine - 1) / (totalLines - 1) : 0
+            const previewScrollHeight = previewContainer.scrollHeight - previewContainer.clientHeight
+            previewContainer.scrollTop = percentage * previewScrollHeight
+          }
+          
+          console.log('─────────────────────────────────────')
+        } finally {
+          setTimeout(() => {
+            isSyncing = false
+          }, 50)
+        }
+      })
+    }
+
+    // 同步编辑器滚动（基于预览顶部元素的行号）
+    const syncEditorScroll = () => {
+      if (isClickSyncing) return
+      
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+      }
+
+      rafId = requestAnimationFrame(() => {
+        if (isSyncing || isClickSyncing) return
+        isSyncing = true
+
+        try {
+          const proseContainer = previewContainer.querySelector('.prose')
+          if (!proseContainer) {
+            isSyncing = false
+            return
+          }
+
+          // 获取预览顶部位置（而不是中心）
+          const previewScrollTop = previewContainer.scrollTop
+          const previewRect = previewContainer.getBoundingClientRect()
+          const previewTopY = previewScrollTop + 20 // 添加小偏移量避免边界问题
+
+          // 查找预览顶部位置的元素
+          const elements = Array.from(proseContainer.querySelectorAll('[data-line]')) as HTMLElement[]
+          
+          let targetLine = 1
+          let minDistance = Infinity
+
+          for (const element of elements) {
+            const rect = element.getBoundingClientRect()
+            const elementY = rect.top - previewRect.top + previewScrollTop
+            const distance = Math.abs(elementY - previewTopY)
+            
+            if (distance < minDistance) {
+              minDistance = distance
+              const line = parseInt(element.getAttribute('data-line') || '1', 10)
+              targetLine = line
+            }
+          }
+
+          // 根据行号滚动编辑器到顶部对齐
+          const style = window.getComputedStyle(editorTextarea)
+          const lineHeight = parseFloat(style.lineHeight) || 28
+          const paddingTop = parseFloat(style.paddingTop) || 16
+          
+          const targetScrollTop = (targetLine - 1) * lineHeight + paddingTop
+          
+          const currentScrollTop = editorTextarea.scrollTop
+          const distance = targetScrollTop - currentScrollTop
+          
+          if (Math.abs(distance) < 5) {
+            editorTextarea.scrollTop = Math.max(0, targetScrollTop)
+          } else {
+            const easing = 0.25
+            editorTextarea.scrollTop = Math.max(0, currentScrollTop + distance * easing)
+          }
+        } finally {
+          setTimeout(() => {
+            isSyncing = false
+          }, 50)
+        }
+      })
+    }
+
+    // 监听编辑器点击，快速精准定位
+    const handleEditorClick = () => {
+      isClickSyncing = true
+      
+      console.log('🖱️ ========== 点击事件触发 ==========')
+      
+      setTimeout(() => {
+        try {
+          const cursorPosition = editorTextarea.selectionStart
+          const textBeforeCursor = content.substring(0, cursorPosition)
+          const currentLine = textBeforeCursor.split('\n').length
+          
+          console.log('👆 [点击定位] 光标位置:', cursorPosition, '当前行号:', currentLine)
+          
+          // 查找预览中对应的元素
+          const result = findPreviewElementByLine(currentLine)
+          
+          if (result) {
+            const { element, line, nextElement, nextLine } = result
+            console.log('✅ [找到元素] 行号:', line, '标签:', element.tagName)
+            
+            const previewRect = previewContainer.getBoundingClientRect()
+            const elementRect = element.getBoundingClientRect()
+            
+            // 计算元素相对于预览容器的位置
+            let elementTop = elementRect.top - previewRect.top + previewContainer.scrollTop
+            
+            // 如果目标行号和找到的元素行号不一致，使用插值（点击时使用精确定位）
+            if (line !== currentLine && nextElement && nextLine) {
+              const nextRect = nextElement.getBoundingClientRect()
+              const nextTop = nextRect.top - previewRect.top + previewContainer.scrollTop
+              
+              const lineDiff = nextLine - line
+              const positionDiff = nextTop - elementTop
+              const targetLineOffset = currentLine - line
+              const interpolationRatio = lineDiff > 0 ? targetLineOffset / lineDiff : 0
+              const interpolatedOffset = positionDiff * interpolationRatio
+              
+              elementTop = elementTop + interpolatedOffset
+              console.log('🔢 [点击插值] 行:', line, '→', currentLine, '→', nextLine, '偏移:', interpolatedOffset.toFixed(2) + 'px')
+            } else if (line !== currentLine) {
+              const estimatedLineHeight = 28
+              const lineOffset = (currentLine - line) * estimatedLineHeight
+              elementTop = elementTop + lineOffset
+              console.log('📐 [点击估算] 行差:', (currentLine - line), '偏移:', lineOffset.toFixed(2) + 'px')
+            }
+            
+            console.log('📐 [位置计算] 元素顶部:', elementTop.toFixed(2) + 'px')
+            
+            // 将元素滚动到预览区域的顶部偏上一点（留出一些余量）
+            const offset = 80
+            const targetScrollTop = Math.max(0, elementTop - offset)
+            previewContainer.scrollTop = targetScrollTop
+            
+            console.log('🎯 [点击滚动] 目标位置:', targetScrollTop.toFixed(2) + 'px')
+          } else {
+            console.warn('⚠️ [点击定位] 未找到元素，使用后备方案')
+            // 后备方案：使用比例同步
+            const totalLines = content.split('\n').length
+            if (totalLines > 1) {
+              const percentage = (currentLine - 1) / (totalLines - 1)
+              const previewScrollHeight = previewContainer.scrollHeight - previewContainer.clientHeight
+              previewContainer.scrollTop = percentage * previewScrollHeight
+            }
+          }
+          
+          console.log('🖱️ ========================================')
+        } finally {
+          setTimeout(() => {
+            isClickSyncing = false
+          }, 300)
+        }
+      }, 10)
+    }
+
+    // 使用 passive 监听器提升性能
+    editorTextarea.addEventListener('scroll', syncPreviewScroll, { passive: true })
+    previewContainer.addEventListener('scroll', syncEditorScroll, { passive: true })
+    editorTextarea.addEventListener('click', handleEditorClick)
+
+    // 初始同步
+    syncPreviewScroll()
 
     return () => {
-      editorTextarea.removeEventListener('scroll', handleEditorScroll)
-      previewContainer.removeEventListener('scroll', handlePreviewScroll)
+      editorTextarea.removeEventListener('scroll', syncPreviewScroll)
+      previewContainer.removeEventListener('scroll', syncEditorScroll)
+      editorTextarea.removeEventListener('click', handleEditorClick)
+      
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+      }
     }
-  }, [splitMode])
+  }, [splitMode, content])
 
   useEffect(() => {
     if (!currentNote) return
@@ -1290,13 +1606,13 @@ export const Editor = () => {
                 onPaste={handlePaste}
                 onContextMenu={handleContextMenu}
                 placeholder="开始编写你的便签... 支持 Markdown 语法（支持粘贴图片）（右键插入元素）"
-                className="w-full h-full px-6 py-4 bg-transparent border-none outline-none resize-none text-gray-900 dark:text-white placeholder-gray-400 font-mono text-sm"
+                className="editor-textarea w-full h-full px-6 py-4 bg-transparent border-none outline-none resize-none text-gray-900 dark:text-white placeholder-gray-400 font-mono text-sm"
               />
             </div>
             <div ref={previewRef} className="flex-1 overflow-y-auto min-w-0">
-              <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+              <div className="split-preview-content px-6 py-4 prose prose-sm dark:prose-invert max-w-none" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkAddLineNumbers]}
                   rehypePlugins={[rehypeRaw]}
                   components={{
                     code: CodeBlock,
