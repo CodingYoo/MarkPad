@@ -238,7 +238,7 @@ export const NoteList = () => {
   }, [filteredNotes, filter.projectId, filter.typeId, filter.tagIds])
 
   return (
-    <div className={`bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+    <div className={`bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'w-12' : 'w-80'}`}>
       {isCollapsed ? (
         /* Collapsed State */
         <div className="flex flex-col items-center h-full">

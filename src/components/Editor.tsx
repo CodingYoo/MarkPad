@@ -864,7 +864,7 @@ export const Editor = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-gray-800">
+    <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 min-w-0">
       {/* Toolbar */}
       <div className="flex items-start sm:items-center justify-between px-3 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 gap-2 sm:gap-4 flex-col sm:flex-row">
         <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
@@ -1218,11 +1218,11 @@ export const Editor = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex min-w-0">
         {splitMode ? (
           /* Split Mode: Editor + Preview (No TOC) */
           <>
-            <div className="flex-1 overflow-y-auto border-r border-gray-200 dark:border-gray-700">
+            <div className="flex-1 overflow-y-auto border-r border-gray-200 dark:border-gray-700 min-w-0">
               <textarea
                 ref={textareaRef}
                 value={content}
@@ -1233,8 +1233,8 @@ export const Editor = () => {
                 className="w-full h-full px-6 py-4 bg-transparent border-none outline-none resize-none text-gray-900 dark:text-white placeholder-gray-400 font-mono text-sm"
               />
             </div>
-            <div className="flex-1 overflow-y-auto">
-              <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none">
+            <div className="flex-1 overflow-y-auto min-w-0">
+              <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw]}
@@ -1256,10 +1256,10 @@ export const Editor = () => {
           </>
         ) : showPreview ? (
           /* Preview Only */
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-w-0">
             {/* TOC for Preview Mode */}
             {showToc && tocTree.length > 0 && (
-              <div className="w-56 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
+              <div className="w-56 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
                 <div className="p-3">
                   <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">目录</h4>
                   <nav>
@@ -1268,8 +1268,8 @@ export const Editor = () => {
                 </div>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto" ref={contentRef}>
-              <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none">
+            <div className="flex-1 overflow-y-auto min-w-0" ref={contentRef}>
+              <div className="px-6 py-4 prose prose-sm dark:prose-invert max-w-none" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 {(() => {
                   let headingIndex = -1
                   const createHeading = (Tag: keyof JSX.IntrinsicElements) => {
@@ -1320,7 +1320,7 @@ export const Editor = () => {
           </div>
         ) : (
           /* Edit Only */
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-w-0">
             <textarea
               ref={textareaRef}
               value={content}
