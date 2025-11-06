@@ -4,7 +4,8 @@ import {
   Bold, Italic, Code, Link,
   List, ListOrdered, CheckSquare,
   Table, Image as ImageIcon, Quote,
-  Minus, FileCode, Highlighter
+  Minus, FileCode, Highlighter,
+  LucideIcon
 } from 'lucide-react'
 
 interface ContextMenuProps {
@@ -13,6 +14,26 @@ interface ContextMenuProps {
   onClose: () => void
   onSelect: (action: string, value?: string) => void
 }
+
+interface MenuItem {
+  label: string
+  icon: LucideIcon
+  action: string
+  value?: string
+  shortcut?: string
+}
+
+interface MenuItemWithChildren {
+  label: string
+  icon: LucideIcon
+  children: MenuItem[]
+}
+
+interface MenuDivider {
+  type: 'divider'
+}
+
+type MenuItemType = MenuItem | MenuItemWithChildren | MenuDivider
 
 export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
   console.log('ContextMenu rendered at:', x, y)
@@ -66,7 +87,7 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
     }
   }, [onClose])
 
-  const menuItems = [
+  const menuItems: MenuItemType[] = [
     { 
       label: '标题', 
       icon: Heading1,
@@ -79,28 +100,28 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
         { label: 'H6 - 六级标题', icon: Heading6, action: 'heading', value: '6', shortcut: 'Ctrl+6' },
       ]
     },
-    { type: 'divider' } as const,
+    { type: 'divider' },
     { 
       label: '文本格式', 
       icon: Bold,
       children: [
-        { label: '粗体', icon: Bold, action: 'bold', value: undefined, shortcut: 'Ctrl+B' },
-        { label: '斜体', icon: Italic, action: 'italic', value: undefined, shortcut: 'Ctrl+I' },
-        { label: '删除线', icon: Minus, action: 'strikethrough', value: undefined },
-        { label: '高亮', icon: Highlighter, action: 'highlight', value: undefined },
-        { label: '行内代码', icon: Code, action: 'inline-code', value: undefined, shortcut: 'Ctrl+`' },
+        { label: '粗体', icon: Bold, action: 'bold', shortcut: 'Ctrl+B' },
+        { label: '斜体', icon: Italic, action: 'italic', shortcut: 'Ctrl+I' },
+        { label: '删除线', icon: Minus, action: 'strikethrough' },
+        { label: '高亮', icon: Highlighter, action: 'highlight' },
+        { label: '行内代码', icon: Code, action: 'inline-code', shortcut: 'Ctrl+`' },
       ]
     },
     { 
       label: '列表', 
       icon: List,
       children: [
-        { label: '无序列表', icon: List, action: 'unordered-list', value: undefined, shortcut: 'Ctrl+U' },
-        { label: '有序列表', icon: ListOrdered, action: 'ordered-list', value: undefined, shortcut: 'Ctrl+O' },
-        { label: '任务列表', icon: CheckSquare, action: 'task-list', value: undefined, shortcut: 'Ctrl+T' },
+        { label: '无序列表', icon: List, action: 'unordered-list', shortcut: 'Ctrl+U' },
+        { label: '有序列表', icon: ListOrdered, action: 'ordered-list', shortcut: 'Ctrl+O' },
+        { label: '任务列表', icon: CheckSquare, action: 'task-list', shortcut: 'Ctrl+T' },
       ]
     },
-    { type: 'divider' } as const,
+    { type: 'divider' },
     { 
       label: '代码块', 
       icon: FileCode,
@@ -144,7 +165,7 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
         }}
       >
         {menuItems.map((item, index) => {
-          if (item.type === 'divider') {
+          if ('type' in item && item.type === 'divider') {
             return (
               <div 
                 key={index} 
@@ -153,7 +174,8 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
             )
           }
 
-          if (item.children) {
+          if ('children' in item) {
+            const menuItemWithChildren = item as MenuItemWithChildren
             return (
               <div key={index} className="relative">
                 <div 
@@ -161,8 +183,8 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
                   onMouseEnter={() => setOpenSubmenu(index)}
                   onMouseLeave={() => setOpenSubmenu(null)}
                 >
-                  {item.icon && <item.icon size={16} />}
-                  <span className="flex-1">{item.label}</span>
+                  {menuItemWithChildren.icon && <menuItemWithChildren.icon size={16} />}
+                  <span className="flex-1">{menuItemWithChildren.label}</span>
                   <span className="text-gray-400">›</span>
                 </div>
                 {openSubmenu === index && (
@@ -176,7 +198,7 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
                     onMouseEnter={() => setOpenSubmenu(index)}
                     onMouseLeave={() => setOpenSubmenu(null)}
                   >
-                    {item.children.map((child, childIndex) => (
+                    {menuItemWithChildren.children.map((child: MenuItem, childIndex: number) => (
                       <button
                         key={childIndex}
                         onClick={() => {
@@ -200,21 +222,22 @@ export const ContextMenu = ({ x, y, onClose, onSelect }: ContextMenuProps) => {
             )
           }
 
-          const Icon = item.icon
+          const menuItem = item as MenuItem
+          const Icon = menuItem.icon
           return (
             <button
               key={index}
               onClick={() => {
-                onSelect(item.action!)
+                onSelect(menuItem.action)
                 onClose()
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               {Icon && <Icon size={16} />}
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.shortcut && (
+              <span className="flex-1 text-left">{menuItem.label}</span>
+              {menuItem.shortcut && (
                 <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">
-                  {item.shortcut}
+                  {menuItem.shortcut}
                 </span>
               )}
             </button>
